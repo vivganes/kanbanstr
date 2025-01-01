@@ -27,3 +27,4 @@ jobs:
        deploy_key: ${{ secrets.KANBANSTR_TOKEN }}
        publish_dir: dist
        enable_jekyll: true
+       cname: www.kanbanstr.com
