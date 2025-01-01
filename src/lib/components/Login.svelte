@@ -192,4 +192,10 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
+
+    @media (prefers-color-scheme: dark) {
+        .login-container {
+                color: #333;
+        }
+    }
 </style> 

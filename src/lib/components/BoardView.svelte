@@ -73,10 +73,8 @@
 </script>
 
 <div class="board-view">
-    <header>
-        <h2>Kanbanstr</h2>
-        <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
-    </header>
+    <h1>Kanbanstr</h1>
+    <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
 
     {#if loading}
         <div class="loading">Loading board...</div>
@@ -95,7 +93,7 @@
         height: 100vh;
     }
 
-    h2{
+    h1{
         background: linear-gradient(90deg, #cc00b1, #5638ff);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -130,5 +128,20 @@
         border: none;
         border-radius: 4px;
         cursor: pointer;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .board-view {
+            color: #333;
+        }
+
+        .back-button {
+            background: #1e1855;           
+        }
+
+        .back-button:hover {
+            background: #2e2955;
+        }
+
     }
 </style> 

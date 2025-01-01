@@ -286,6 +286,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem;
+        padding-left: 0rem;
     }
 
     .board-header {
@@ -361,6 +362,11 @@
         flex: 1;
     }
 
+    .header-left h1{
+        margin-top: 0;
+        margin-bottom: 0.5rem;    
+    }
+
     h1 {
         background: linear-gradient(90deg, #cc00b1, #5638ff);
         -webkit-background-clip: text;
@@ -373,5 +379,21 @@
         padding: 0.25rem 0.5rem;
         border-radius: 4px;
         font-size: 0.8rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .boards-grid {
+                color: #333;
+        }
+
+        .edit-button {
+            color: #333;
+        }
+
+        input, textarea {
+            border: 1px solid #333;
+            color: #333;
+        }
+        
     }
 </style> 

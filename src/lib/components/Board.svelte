@@ -383,4 +383,25 @@
     .board-btn:hover {
         background: #ebecf0;
     }
+
+    
+    @media (prefers-color-scheme: dark) {
+        .board {
+            color: #333;
+        }
+
+        .board-header h2 {
+            color: #eee;
+        }
+
+        .board-header p {
+            color: #ccc;
+        }
+
+        .add-column-actions .cancel {
+            color: #333;
+        }
+
+
+    }
 </style> 

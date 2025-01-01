@@ -456,4 +456,27 @@
         margin-top: 0.5rem;
         font-style: italic;
     }
+
+    @media (prefers-color-scheme: dark) {
+        .modal-backdrop {
+            color: #333;
+        }
+
+        .title-input:hover {
+            background: #050505;
+        }
+
+        .title-input:focus {
+            background: #000000;
+            outline: 2px solid #0052cc;
+        }
+
+        .board-header h2 {
+            color: #eee;
+        }
+
+        .board-header p {
+            color: #ccc;
+        }        
+    }
 </style> 
