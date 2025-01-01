@@ -1,0 +1,49 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import Router from 'svelte-spa-router';
+  import { ndkInstance } from './lib/ndk';
+  import Login from './lib/components/Login.svelte';
+  import BoardsList from './lib/components/BoardsList.svelte';
+  import BoardView from './lib/components/BoardView.svelte';
+
+  let user = null;
+  let loginMethod = null;
+  let isReady = false;
+
+  // Define routes
+  const routes = {
+    '/': BoardsList,
+    '/board/:pubkey/:id': BoardView,
+    '/board/:pubkey/:id/:cardpubkey/:cardId': BoardView
+  };
+
+  onMount(() => {
+    const unsubscribe = ndkInstance.store.subscribe(state => {
+      user = state.user;
+      loginMethod = state.loginMethod;
+      isReady = state.isReady;
+    });
+
+    return unsubscribe;
+  });
+</script>
+
+<main>
+  {#if !user}
+    <Login />
+  {:else}
+    {#if !isReady}
+      <p>Loading...</p>
+    {:else}
+    <Router {routes} />
+    {/if}
+  {/if}
+</main>
+
+<style>
+  main {
+    height: 100vh;
+    width: 100%;
+    margin: 0 auto; /* Center the content */
+  }
+</style>
