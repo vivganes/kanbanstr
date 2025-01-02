@@ -54,7 +54,6 @@
     });
 
     async function loadBoard() {
-        console.trace();
         try {
             board = await kanbanStore.loadBoardByPubkeyAndId(params.pubkey,params.id);
             if (!board) {

@@ -30,12 +30,14 @@ export interface Card {
 function createKanbanStore() {
     const { subscribe, set, update } = writable<{
         boards: KanbanBoard[];
+        myBoards: KanbanBoard[];
         cards: Map<string, Card[]>;
         loading: boolean;
         currentUser: NDKUser | null;
         error: string | null;
     }>({
         boards: [],
+        myBoards: [],
         cards: new Map(),
         loading: false,
         currentUser: null,
@@ -199,7 +201,8 @@ function createKanbanStore() {
 
             await event.publish();
             console.log('Board created successfully');
-            await loadBoards();
+            
+            await Promise.all([loadBoards(), loadMyBoards()]);
         } catch (error) {
             console.error('Failed to create board:', error);
             throw error;
@@ -225,7 +228,7 @@ function createKanbanStore() {
                 throw new Error('User not found');
             }
             if (currentUser.pubkey !== boardEvent.pubkey) {
-                throw new Error('User does not have permission to update this board');
+                throw new Error('You do not have permission to update this board');
             }
 
             // Create the card event
@@ -340,7 +343,7 @@ function createKanbanStore() {
                 throw new Error('User not found');
             }
             if (currentUser.pubkey !== card.pubkey) {
-                throw new Error('User does not have permission to update this board');
+                throw new Error('You do not have permission to update this board');
             }
 
             const cardEvent = await findNDKCardEventByDtag(card.id);
@@ -442,7 +445,7 @@ function createKanbanStore() {
                 throw new Error('User not found');
             }
             if (currentUser.pubkey !== board.pubkey) {
-                throw new Error('User does not have permission to update this board');
+                throw new Error('You do not have permission to update this board');
             }
 
             const boardFilter: NDKFilter = {
@@ -483,7 +486,8 @@ function createKanbanStore() {
                 ...state,
                 boards: state.boards.map(b => 
                     b.id === board.id ? board : b
-                )
+                ),
+                myBoards: state.myBoards.map(b => b.id === board.id ? board : b)
             }));
         } catch (error) {
             console.error('Failed to update board:', error);
@@ -491,10 +495,63 @@ function createKanbanStore() {
         }
     }
 
+    async function loadMyBoards() {
+        update(state => ({ ...state, loading: true, error: null }));
+        
+        try {
+            const currentUser = await ndk.signer?.user();
+            if (!currentUser) {
+                throw new Error('User not found');
+            }
+
+            const filter: NDKFilter = {
+                kinds: [30301 as NDKKind],
+                authors: [currentUser.pubkey],
+                limit: 500
+            };
+
+            const events = await ndk.fetchEvents(filter);
+            const myBoards: KanbanBoard[] = [];
+
+            for (const event of events) {
+                try {
+                    const content = JSON.parse(event.content);
+                    const titleTag = event.tags.find(t => t[0] === 'title');
+                    const dTag = event.tags.find(t => t[0] === 'd');
+                    myBoards.push({
+                        id: dTag ? dTag[1] : event.id,
+                        pubkey: event.pubkey,
+                        title: titleTag ? titleTag[1] : 'Untitled Board',
+                        description: content.description,
+                        columnMapping: content.columnMapping || 'EXACT',
+                        columns: content.columns
+                    });
+                } catch (error) {
+                    console.error('Failed to parse board event:', error);
+                }
+            }
+
+            update(state => ({
+                ...state,
+                myBoards,
+                loading: false
+            }));
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load my boards';
+            update(state => ({
+                ...state,
+                loading: false,
+                error: errorMessage
+            }));
+            throw error;
+        }
+    }
+
     return {
         subscribe,
         init,
         loadBoards,
+        loadMyBoards,
         loadCardsForBoard,
         createBoard,
         createCard,

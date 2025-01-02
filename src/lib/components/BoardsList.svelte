@@ -10,6 +10,7 @@
 
     let showCreateBoard = false;
     let boards: KanbanBoard[] = [];
+    let myBoards: KanbanBoard[] = [];
     let loading = false;
     let currentUser: NDKUser | null = null;
     let currentLoginMethod: LoginMethod | null = null;
@@ -29,12 +30,28 @@
     let activeTab: 'my-boards' | 'all-boards' = 'my-boards';
     
     // Computed property for filtered boards
-    $: filteredBoards = activeTab === 'my-boards' 
-        ? boards.filter(board => board.pubkey === currentUser?.pubkey)
-        : boards;
+    $: filteredBoards = activeTab === 'my-boards' ? myBoards : boards;
 
-    function switchTab(tab: 'my-boards' | 'all-boards') {
-        activeTab = tab;
+    // Add a Map to store user display names
+    let creatorNames = new Map<string, string>();
+
+    // Add this to track Map updates
+    let creatorNamesVersion = 0;
+
+    async function switchTab(tab: 'my-boards' | 'all-boards') {
+        try {
+            activeTab = tab;
+            loading = true;
+            errorMessage = null;
+            
+            if (tab === 'my-boards') {
+                await kanbanStore.loadMyBoards();
+            } else {
+                await kanbanStore.loadBoards();
+            }
+        } catch (error) {
+            errorMessage = error instanceof Error ? error.message : 'Failed to load boards';
+        }
     }
 
     onMount(() => {
@@ -44,15 +61,29 @@
                 currentLoginMethod = state.loginMethod;
                 
                 if (state.isReady) {
-                    initializeApp();
+                    if(!kanbanStore.hasNDK()){
+                        kanbanStore.init(ndkInstance.ndk!);
+                    }
+                    // Load my boards by default
+                    kanbanStore.loadMyBoards();
                 }
             });
 
-            return unsubNDK;
+            // Subscribe to kanban store updates
+            const unsubKanban = kanbanStore.subscribe(state => {
+                boards = state.boards;
+                myBoards = state.myBoards;
+                loading = state.loading;
+                errorMessage = state.error;
+            });
+
+            return () => {
+                unsubNDK();
+                unsubKanban();
+            };
         };
 
         initialize();
-        return () => {};
     });
 
     async function initializeApp() {
@@ -139,6 +170,36 @@
             handleEdit(board, event);
         } else if (event.key === 'Escape') {
             editState = null;
+        }
+    }
+
+    async function getUserWithProfileFromPubKey(pubKey: string): Promise<NDKUser> {
+        const user = ndkInstance.ndk!.getUser({pubkey: pubKey});
+        await user.fetchProfile();
+        return user;
+    }
+
+    // Function to load creator names
+    async function loadCreatorName(pubkey: string) {
+        if (!creatorNames.has(pubkey)) {
+            try {
+                const user = await getUserWithProfileFromPubKey(pubkey);
+                creatorNames.set(pubkey, user.profile?.name || 'Anonymous');
+                creatorNamesVersion += 1;
+            } catch (error) {
+                console.error('Failed to load user profile:', error);
+                creatorNames.set(pubkey, 'Anonymous');
+                creatorNamesVersion += 1;
+            }
+        }
+        return creatorNames.get(pubkey);
+    }
+
+    $: {
+        if (creatorNamesVersion || filteredBoards.length) {
+            filteredBoards.forEach(board => {
+                loadCreatorName(board.pubkey);
+            });
         }
     }
 
@@ -230,6 +291,7 @@
                             {/if}
                         </button>
                     </div>
+                    
                     <div class="description-section">
                         {#if editState?.boardId === board.id && editState.field === 'description'}
                             <textarea
@@ -240,15 +302,24 @@
                                 autofocus
                             />
                         {:else}
-                            <p>{board.description}</p>
+                            <p><b>Description: </b>{' ' + (board.description || 'None')}</p>
                             <button 
-                                class="edit-button" 
+                                class="desc-edit-button" 
                                 on:click={(e) => startEdit(board, 'description', e)}
                                 title="Edit description"
                             >
                                 ✎
                             </button>
                         {/if}
+                    </div>
+                    <div class="creator-info">
+                        {#await loadCreatorName(board.pubkey)}
+                            <span>Loading creator...</span>
+                        {:then name}
+                            Created by {name}
+                        {:catch}
+                            Created by Anonymous
+                        {/await}
                     </div>
                 </div>
             {/each}
@@ -355,8 +426,9 @@
         gap: 0.5rem;
     }
 
-    .edit-button {
+    .edit-button , .desc-edit-button {
         background: none;
+        color: #666;
         border: none;
         padding: 0.2rem;
         cursor: pointer;
@@ -365,12 +437,18 @@
         transition: opacity 0.2s;
     }
 
-    .title-section:hover .edit-button,
-    .description-section:hover .edit-button {
+    .desc-edit-button {
+        padding: 0rem;
+        
+    }
+
+
+    .title-section:hover .edit-button, 
+    .description-section:hover .desc-edit-button {
         opacity: 0.6;
     }
 
-    .edit-button:hover {
+    .edit-button:hover, .desc-edit-button:hover {
         opacity: 1 !important;
     }
 
@@ -389,9 +467,7 @@
         min-height: 60px;
     }
 
-    .description-section p {
-        flex: 1;
-    }
+    
 
     .header-left h1{
         margin-top: 0;
@@ -473,6 +549,20 @@
 
         .tabs {
             border-bottom-color: #333;
+        }
+    }
+
+    .creator-info {
+        font-size: 0.9rem;
+        color: #666;
+        padding-top: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-style: italic;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .creator-info {
+            color: #999;
         }
     }
 </style> 
