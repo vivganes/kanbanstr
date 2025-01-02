@@ -184,10 +184,6 @@ class NDKInstance {
           while (!window.hasOwnProperty('nostr')) {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
-          console.log('waiting for window.nostr.getRelays');  
-          while (!window.nostr!.hasOwnProperty('getRelays')) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
           console.log("Found nostr extension");
         })();
     }
