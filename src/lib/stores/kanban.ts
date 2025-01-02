@@ -56,15 +56,17 @@ function createKanbanStore() {
     }
 
     async function loadBoards() {
+        console.log("Loading boards");
         update(state => ({ ...state, loading: true, error: null }));
         
         try {
             const filter: NDKFilter = {
-                kinds: [30301 as NDKKind],
-                limit: 50
+                kinds: [30301 as NDKKind],                
+                limit: 500
             };
 
             const events = await ndk.fetchEvents(filter);
+            console.log(events.size);
             const boards: KanbanBoard[] = [];
 
             for (const event of events) {
