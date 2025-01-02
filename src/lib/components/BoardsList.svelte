@@ -25,12 +25,22 @@
 
     let editState: EditState | null = null;
 
+    // Add tab state
+    let activeTab: 'my-boards' | 'all-boards' = 'my-boards';
+    
+    // Computed property for filtered boards
+    $: filteredBoards = activeTab === 'my-boards' 
+        ? boards.filter(board => board.pubkey === currentUser?.pubkey)
+        : boards;
+
+    function switchTab(tab: 'my-boards' | 'all-boards') {
+        activeTab = tab;
+    }
+
     onMount(() => {
         const initialize = async () => {
             const unsubNDK = ndkInstance.store.subscribe(state => {
                 currentUser = state.user;
-                currentUser?.fetchProfile();
-                console.log("Current User:" + currentUser?.profile?.displayName);
                 currentLoginMethod = state.loginMethod;
                 
                 if (state.isReady) {
@@ -47,7 +57,6 @@
 
     async function initializeApp() {
         try {
-            console.log("NDK:" + ndkInstance.ndk);
             if(!ndkInstance.ndk) {
                 throw new Error('NDK not initialized');
             }
@@ -153,15 +162,37 @@
         <button class="logout" on:click={handleLogout}>Logout</button>
     </div>
 
+    <!-- Add tabs -->
+    <div class="tabs">
+        <button 
+            class="tab-button" 
+            class:active={activeTab === 'my-boards'}
+            on:click={() => switchTab('my-boards')}
+        >
+            My Boards
+        </button>
+        <button 
+            class="tab-button" 
+            class:active={activeTab === 'all-boards'}
+            on:click={() => switchTab('all-boards')}
+        >
+            All Boards
+        </button>
+    </div>
+
     {#if loading}
         <div class="loading">Loading...</div>
-    {:else if boards.length === 0}
+    {:else if filteredBoards.length === 0}
         <div class="empty">
-            <p>No boards found. {currentLoginMethod !== 'npub' && currentLoginMethod !== 'readonly' ? 'Create your first board!' : ''}</p>
+            {#if activeTab === 'my-boards'}
+                <p>You haven't created any boards yet. {currentLoginMethod !== 'npub' && currentLoginMethod !== 'readonly' ? 'Create your first board!' : ''}</p>
+            {:else}
+                <p>No boards found.</p>
+            {/if}
         </div>
     {:else}
         <div class="boards-grid">
-            {#each boards as board (board.id)}
+            {#each filteredBoards as board (board.id)}
                 <div 
                     class="board-card" 
                     on:click={() => handleBoardClick(board.pubkey, board.id)}
@@ -381,6 +412,37 @@
         font-size: 0.8rem;
     }
 
+    .tabs {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 0.5rem;
+    }
+
+    .tab-button {
+        background: none;
+        border: none;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        font-size: 1rem;
+        color: #666;
+        border-radius: 4px 4px 0 0;
+        transition: all 0.2s ease;
+    }
+
+    .tab-button:hover {
+        color: #333;
+        background: #f5f5f5;
+    }
+
+    .tab-button.active {
+        color: #0052cc;
+        border-bottom: 2px solid #0052cc;
+        font-weight: 500;
+    }
+
     @media (prefers-color-scheme: dark) {
         .boards-grid {
                 color: #333;
@@ -395,5 +457,22 @@
             color: #333;
         }
         
+        .tab-button {
+            color: #999;
+        }
+
+        .tab-button:hover {
+            color: #fff;
+            background: #2d2d2d;
+        }
+
+        .tab-button.active {
+            color: #66b2ff;
+            border-bottom-color: #66b2ff;
+        }
+
+        .tabs {
+            border-bottom-color: #333;
+        }
     }
 </style> 

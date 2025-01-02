@@ -135,6 +135,7 @@ class NDKInstance {
             
             const user = await signer.user();
             await user.fetchProfile();
+            console.log("Name:"+ user.profile?.displayName)
             this.state.set({
                 user,
                 loginMethod: 'nsec',
@@ -159,6 +160,7 @@ class NDKInstance {
             if (!this._ndk) throw new Error('NDK not initialized');
             
             const user = this._ndk.getUser({npub});
+            await user.fetchProfile();
             this.state.set({
                 user,
                 loginMethod: 'npub',
@@ -216,6 +218,7 @@ class NDKInstance {
             if (!this._ndk) throw new Error('NDK not initialized');
             
             const user = await signer.user();
+            await user.fetchProfile();
             this.state.set({
                 user,
                 loginMethod: 'nip07',
@@ -239,8 +242,12 @@ class NDKInstance {
             await this.initNDK(signer);
             
             if (!this._ndk) throw new Error('NDK not initialized');
-            
-            const user = await signer.user();
+            const npub = (await signer.user()).npub;            
+            const user = this._ndk.getUser({npub});
+            user.profile = {
+                displayName: 'Sneaky Sneakerson',
+                image: 'https://robohash.org/sneaky-sneakerson'
+            }
             this.state.set({
                 user,
                 loginMethod: 'readonly',
