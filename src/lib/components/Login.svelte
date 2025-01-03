@@ -81,8 +81,14 @@
                 bind:group={selectedMethod} 
                 value="nip07"
             >
-            Login with Browser Extension
-        </label>
+            Login with <a href="https://nostr.com/get-started#keeping-keys-safe" target="_blank">browser extension</a>
+        </label>        
+    </div>
+
+    <div>
+        <p>
+            Don't have a <a href="https://nostr.com" target="_blank">nostr</a> account? <a href="https://primal.net/new" target="_blank">Click here</a> to get one.
+        </p>
     </div>
 
     {#if selectedMethod === 'nsec'}

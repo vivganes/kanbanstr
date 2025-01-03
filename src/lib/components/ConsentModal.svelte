@@ -30,6 +30,7 @@
 {#if showModal}
     <div class="modal-backdrop">
         <div class="modal">
+            <h1>Kanbanstr</h1>
             <h2>Important Notice</h2>
             <p>Please read and acknowledge the following before using Kanbanstr:</p>
             
@@ -122,6 +123,18 @@
     button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    h1 {
+        background: linear-gradient(90deg, #cc00b1, #5638ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-top: 0rem;
+    }
+
+    h2 {
+        text-align: center;
     }
 
     @media (prefers-color-scheme: dark) {
