@@ -5,6 +5,7 @@
   import Login from './lib/components/Login.svelte';
   import BoardsList from './lib/components/BoardsList.svelte';
   import BoardView from './lib/components/BoardView.svelte';
+  import ConsentModal from './lib/components/ConsentModal.svelte';
 
   let user = null;
   let loginMethod = null;
@@ -29,6 +30,7 @@
 </script>
 
 <main>
+  <ConsentModal />
   {#if !user}
     <Login />
   {:else}
@@ -44,6 +46,6 @@
   main {
     height: 100vh;
     width: 100%;
-    margin: 0 auto; /* Center the content */
+    margin: 0 auto;
   }
 </style>
