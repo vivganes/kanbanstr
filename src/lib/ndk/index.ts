@@ -326,6 +326,52 @@ class NDKInstance {
             throw error;
         }
     }
+
+    async getZapAmount(eventId: string): Promise<number> {
+        try {
+            if (!this._ndk) throw new Error('NDK not initialized');
+
+            const filter = {
+                kinds: [9735],
+                '#e': [eventId]
+            };
+
+            const events = await this._ndk.fetchEvents(filter);
+            let totalAmount = 0;
+
+            for (const event of events) {
+                try {
+                    // Get amount from tags
+                    const amountTag = event.tags.find(t => t[0] === 'amount');
+                    if (amountTag) {
+                        totalAmount += parseInt(amountTag[1], 10);
+                    }
+                } catch (error) {
+                    console.error('Error processing zap event:', error);
+                }
+            }
+
+            return totalAmount;
+        } catch (error) {
+            console.error('Failed to get zap amount:', error);
+            return 0;
+        }
+    }
+}
+
+export function formatAmount(amount: number): string {
+    if (amount === 0) return '0';
+    
+    if (amount >= 1_000_000_000) {
+        return `${(amount / 1_000_000_000).toFixed(1)}B`;
+    }
+    if (amount >= 1_000_000) {
+        return `${(amount / 1_000_000).toFixed(1)}M`;
+    }
+    if (amount >= 1_000) {
+        return `${(amount / 1_000).toFixed(1)}k`;
+    }
+    return amount.toString();
 }
 
 export const ndkInstance = NDKInstance.getInstance();

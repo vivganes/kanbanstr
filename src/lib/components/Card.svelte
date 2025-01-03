@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { ndkInstance } from '../ndk';
+    import { onMount } from 'svelte';
+    import { ndkInstance, formatAmount } from '../ndk';
     import type { Card } from '../stores/kanban';
     import CardDetails from './CardDetails.svelte';
     import ZapModal from './ZapModal.svelte';
@@ -15,6 +16,7 @@
     let isZapping = false;
     let zapError: string | null = null;
     let showZapModal = false;
+    let zapAmount = 0;
 
     function copyPermalink() {
         if (copyTimeout) clearTimeout(copyTimeout);
@@ -65,6 +67,20 @@
             throw error;
         }
     }
+
+    // Add this function to load zap amount
+    async function loadZapAmount() {
+        try {
+            zapAmount = await ndkInstance.getZapAmount(card.id);
+        } catch (error) {
+            console.error('Failed to load zap amount:', error);
+        }
+    }
+
+    // Call it when the component mounts
+    onMount(() => {
+        loadZapAmount();
+    });
 </script>
 
 <div 
@@ -76,14 +92,19 @@
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
         <div class="card-actions">
-            <button 
-                class="zap-button" 
-                on:click={handleZap}
-                disabled={isZapping}
-                title="Send sats via Lightning"
-            >
-                ⚡
-            </button>
+            <div class="zap-container">
+                <button 
+                    class="zap-button" 
+                    on:click={handleZap}
+                    disabled={isZapping}
+                    title="Send sats via Lightning"
+                >
+                    ⚡
+                </button>
+                {#if zapAmount > 0}
+                    <span class="zap-amount">{formatAmount(zapAmount)}</span>
+                {/if}
+            </div>
             <button 
                 class="permalink-button" 
                 on:click|stopPropagation={copyPermalink}
@@ -256,6 +277,24 @@
 
         .zap-button:hover:not(:disabled) {
             background: rgba(255, 215, 0, 0.2);
+        }
+    }
+
+    .zap-container {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .zap-amount {
+        font-size: 0.8rem;
+        color: #ffd700;
+        font-weight: 500;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .zap-amount {
+            color: #ffd700;
         }
     }
 </style> 
