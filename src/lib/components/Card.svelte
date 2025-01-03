@@ -1,6 +1,8 @@
 <script lang="ts">
+    import { ndkInstance } from '../ndk';
     import type { Card } from '../stores/kanban';
     import CardDetails from './CardDetails.svelte';
+    import ZapModal from './ZapModal.svelte';
 
     export let card: Card;
     export let boardId: string;
@@ -10,6 +12,9 @@
 
     let copySuccess = false;
     let copyTimeout: NodeJS.Timeout;
+    let isZapping = false;
+    let zapError: string | null = null;
+    let showZapModal = false;
 
     function copyPermalink() {
         if (copyTimeout) clearTimeout(copyTimeout);
@@ -47,6 +52,19 @@
     function formatPubkey(pubkey: string): string {
         return pubkey.slice(0, 4) + '...' + pubkey.slice(-4);
     }
+
+    async function handleZap(event: MouseEvent) {
+        event.stopPropagation(); // Prevent card details from opening
+        showZapModal = true;
+    }
+
+    async function executeZap(amount: number, comment: string) {
+        try {
+            await ndkInstance.zapCard(card, amount, comment);
+        } catch (error) {
+            throw error;
+        }
+    }
 </script>
 
 <div 
@@ -57,17 +75,27 @@
 >
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
-        <button 
-            class="permalink-button" 
-            on:click|stopPropagation={copyPermalink}
-            title="Copy permalink"
-        >
-            {#if copySuccess}
-                ✓
-            {:else}
-                🔗
-            {/if}
-        </button>
+        <div class="card-actions">
+            <button 
+                class="zap-button" 
+                on:click={handleZap}
+                disabled={isZapping}
+                title="Send sats via Lightning"
+            >
+                ⚡
+            </button>
+            <button 
+                class="permalink-button" 
+                on:click|stopPropagation={copyPermalink}
+                title="Copy permalink"
+            >
+                {#if copySuccess}
+                    ✓
+                {:else}
+                    🔗
+                {/if}
+            </button>
+        </div>
     </div>
 
     <div class="card-footer" on:click={openDetails}>
@@ -88,6 +116,19 @@
 
 {#if showDetails}
     <CardDetails {card} {boardId} {isUnmapped} onClose={closeDetails} />
+{/if}
+
+{#if zapError}
+    <div class="error-message">
+        {zapError}
+    </div>
+{/if}
+
+{#if showZapModal}
+    <ZapModal 
+        onClose={() => showZapModal = false}
+        onZap={executeZap}
+    />
 {/if}
 
 <style>
@@ -169,5 +210,52 @@
     .permalink-button:hover {
         opacity: 1;
         background: rgba(0, 0, 0, 0.05);
+    }
+
+    .card-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .zap-button {
+        background: none;
+        border: none;
+        padding: 0.2rem;
+        cursor: pointer;
+        font-size: 1rem;
+        opacity: 0.6;
+        border-radius: 4px;
+        transition: opacity 0.2s, background-color 0.2s;
+        color: #ffd700;
+    }
+
+    .zap-button:hover:not(:disabled) {
+        opacity: 1;
+        background: rgba(255, 215, 0, 0.1);
+    }
+
+    .zap-button:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .error-message {
+        color: #ff4444;
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: rgba(255, 68, 68, 0.1);
+        border-radius: 4px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .zap-button {
+            color: #ffd700;
+        }
+
+        .zap-button:hover:not(:disabled) {
+            background: rgba(255, 215, 0, 0.2);
+        }
     }
 </style> 

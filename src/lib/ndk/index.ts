@@ -2,9 +2,13 @@ import NDK, {
     NDKPrivateKeySigner, 
     NDKNip07Signer, 
     NDKUser,
-    type NDKSigner
+    NDKZapper,
+    type NDKSigner,
+    type NDKPaymentConfirmation
 } from '@nostr-dev-kit/ndk';
 import { writable, type Writable } from 'svelte/store';
+import type { Card } from '../stores/kanban';
+import { NDKNWCWallet, NDKWebLNWallet } from '@nostr-dev-kit/ndk-wallet';
 
 export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
 
@@ -290,6 +294,37 @@ class NDKInstance {
         })();
         
         return currentState;
+    }
+
+    async zapCard(card: Card, amount: number = 1000, comment?: string) {
+        try {
+            if (!this._ndk) throw new Error('NDK not initialized');
+            if (!this._ndk.signer) throw new Error('No signer available');
+
+            // get card event from NDK
+            const cardEvent = await this._ndk.fetchEvent({
+                ids: [card.id],
+            });
+           
+            const wallet = new NDKWebLNWallet();
+            this._ndk.wallet = wallet;
+
+            const zapper = new NDKZapper(cardEvent!, amount*1000);
+            if (comment) {
+                zapper.comment = comment;
+            }
+            const zapDatas = await zapper.zap();
+            console.log('zap data: '+ zapDatas);
+            for (let zapdata of zapDatas.keys()){
+                console.log("Zap Data: "+ zapdata.pubkey );
+                console.log(JSON.stringify(zapDatas.get(zapdata)));
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to zap:', error);
+            throw error;
+        }
     }
 }
 

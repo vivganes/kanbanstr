@@ -18,6 +18,7 @@ export interface Column {
 
 export interface Card {
     id: string;
+    dTag: string;
     pubkey: string;
     title: string;
     description: string;
@@ -159,7 +160,8 @@ function createKanbanStore() {
                     const dTag = dTagFullForm ? dTagFullForm[1] : undefined;
                     cards.push({
                         pubkey: event.pubkey,
-                        id: dTag!,
+                        id: event.id,
+                        dTag: dTag!,
                         title: titleTag ? titleTag[1] : 'Untitled Card',
                         description: content.description,
                         status: content.status,
@@ -276,7 +278,8 @@ function createKanbanStore() {
                 const newCards = new Map(state.cards);
                 const cards = newCards.get(boardId) || [];
                 cards.push({
-                    id: cardIdentifier,
+                    id: newBoardEvent.id,
+                    dTag: cardIdentifier,
                     pubkey: cardEvent.pubkey,
                     title: card.title,
                     description: card.description,
@@ -346,7 +349,7 @@ function createKanbanStore() {
                 throw new Error('You do not have permission to update this board');
             }
 
-            const cardEvent = await findNDKCardEventByDtag(card.id);
+            const cardEvent = await findNDKCardEventByDtag(card.dTag);
             if (!cardEvent) {
                 throw new Error('Card not found');
             }
