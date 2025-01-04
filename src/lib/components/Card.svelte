@@ -29,7 +29,9 @@
             loginMethod = state.loginMethod;
         });
 
-        return unsubscribe;
+        return {
+            unsubscribe
+        };
     });
 
     // This can be used for likes, comments, etc.
@@ -214,6 +216,8 @@
     h4 {
         margin: 0 0 0.5rem 0;
         text-align: left;
+        word-wrap: break-word;
+        word-break: break-word;
     }
 
     .card-footer {

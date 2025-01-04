@@ -18,6 +18,7 @@ interface NDKState {
     user: NDKUser | null;
     loginMethod: LoginMethod | null;
     isReady: boolean;
+    isLoggingInNow: boolean;
 }
 
 interface StoredLoginData {
@@ -41,7 +42,8 @@ class NDKInstance {
     private state: Writable<NDKState> = writable({
         user: null,
         loginMethod: null,
-        isReady: false
+        isReady: false,
+        isLoggingInNow: false
     });
 
     private constructor() {
@@ -51,6 +53,11 @@ class NDKInstance {
     private async tryAutoLogin() {
         const storedData = this.getStoredLoginData();
         if (!storedData) return;
+        
+        this.state.update(state => ({
+            ...state,
+            isLoggingInNow: true
+        }));
 
         try {
             switch (storedData.loginMethod) {
@@ -154,7 +161,8 @@ class NDKInstance {
             this.state.set({
                 user,
                 loginMethod: 'nsec',
-                isReady: true
+                isReady: true,
+                isLoggingInNow: false
             });
 
             // Store login data
@@ -179,7 +187,8 @@ class NDKInstance {
             this.state.set({
                 user,
                 loginMethod: 'npub',
-                isReady: true
+                isReady: true,
+                isLoggingInNow: false
             });
 
             // Store login data
@@ -235,7 +244,8 @@ class NDKInstance {
             this.state.set({
                 user,
                 loginMethod: 'nip07',
-                isReady: true
+                isReady: true,
+                isLoggingInNow: false
             });
 
             // Store login data
@@ -264,7 +274,8 @@ class NDKInstance {
             this.state.set({
                 user,
                 loginMethod: 'readonly',
-                isReady: true
+                isReady: true,
+                isLoggingInNow: false
             });
 
             // Store login data

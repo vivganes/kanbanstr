@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { ndkInstance, type LoginMethod } from '../ndk';
     
     let selectedMethod: LoginMethod = 'readonly';
@@ -7,8 +8,18 @@
     let error = '';
     let loading = false;
 
+    onMount(() => {
+        const unsubscribe = ndkInstance.store.subscribe(state => {
+            loading = state.isLoggingInNow;
+        });
+
+        return {
+            unsubscribe
+        };
+    });
+
+
     async function handleLogin() {
-        loading = true;
         error = '';
         
         try {
@@ -37,14 +48,13 @@
             }
         } catch (e) {
             error = e instanceof Error ? e.message : 'Failed to login';
-        } finally {
-            loading = false;
-        }
+        } 
     }
 </script>
 
 <div class="login-container">
     <h1>Kanbanstr</h1>
+    {#if !loading}
     <h2>Login</h2>
     
     <div class="method-selector">
@@ -110,6 +120,7 @@
             >
         </div>
     {/if}
+    {/if}
 
     {#if error}
         <div class="error">
@@ -130,6 +141,7 @@
         max-width: 400px;
         margin: 2rem auto;
         padding: 2rem;
+        padding-top: 0.5rem;
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
