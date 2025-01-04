@@ -2,6 +2,8 @@
     import type { Column, Card } from '../stores/kanban';
     import CardComponent from './Card.svelte';
     import CreateCard from './CreateCard.svelte';
+    import { ndkInstance } from '../ndk';
+    import { onMount } from 'svelte';
 
     export let column: Column;
     export let cards: Card[];
@@ -16,6 +18,22 @@
     let isDragOver = false;
     let dragOverIndex: number | null = null;
     let showDeleteButton = false;
+    let currentUser: any = null;
+    let loginMethod: string | null = null;
+
+    onMount(() => {
+        const unsubscribe = ndkInstance.store.subscribe(state => {
+            currentUser = state.user;
+            loginMethod = state.loginMethod;
+        });
+
+        return unsubscribe;
+    });
+
+    $: canEditBoard = currentUser && 
+                 loginMethod !== 'readonly' && 
+                 loginMethod !== 'npub' && 
+                 currentUser.pubkey === boardPubkey;
 
     function openCreateModal() {
         showCreateModal = true;
@@ -87,7 +105,7 @@
     <header class="column-header">
         <h3>{column.name}</h3>
         <div class="column-actions">
-            {#if !isUnmapped && showDeleteButton}
+            {#if canEditBoard && !isUnmapped && showDeleteButton}
                 <button 
                     class="delete-column-btn" 
                     on:click|stopPropagation={onDeleteColumn}
@@ -96,7 +114,14 @@
                     ×
                 </button>
             {/if}
-            <button class="add-card-btn" on:click={openCreateModal}>+ New Card</button>
+            {#if canEditBoard}
+                <button 
+                    class="add-card-btn" 
+                    on:click={openCreateModal}
+                >
+                    + New Card
+                </button>
+            {/if}            
         </div>
     </header>
 
@@ -226,5 +251,17 @@
     .delete-column-btn:hover {
         background: #ffebee;
         color: #d32f2f;
+    }
+
+    .add-card-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: auto;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .add-card-btn:disabled {
+            opacity: 0.5;
+        }
     }
 </style> 

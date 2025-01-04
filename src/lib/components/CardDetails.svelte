@@ -5,6 +5,7 @@
     import StarterKit from '@tiptap/starter-kit';
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy } from 'svelte';
+    import { ndkInstance } from '../ndk';
 
     export let card: Card;
     export let boardId: string;
@@ -23,7 +24,15 @@
     let isSaving = false;
     let error: string | null = null;
 
+    let currentUser: any = null;
+    let loginMethod: string | null = null;
+
     onMount(() => {
+        const unsubscribeNdk = ndkInstance.store.subscribe(state => {
+            currentUser = state.user;
+            loginMethod = state.loginMethod;
+        });
+
         editor = new Editor({
             element: editorElement,
             extensions: [
@@ -39,6 +48,10 @@
                 description = editor.storage.markdown.getMarkdown();
             }
         });
+
+        return {
+            unsubscribeNdk
+        }
     });
 
     onDestroy(() => {
@@ -46,6 +59,11 @@
             editor.destroy();
         }
     });
+
+    $: canEditCard = currentUser && 
+                 loginMethod !== 'readonly' && 
+                 loginMethod !== 'npub' && 
+                 currentUser.pubkey === card.pubkey;
 
     function addAttachment() {
         if (newAttachment.trim()) {
@@ -159,14 +177,16 @@
                         </div>
                     {/each}
                 </div>
-                <div class="add-assignee">
-                    <input
-                        bind:value={newAssignee}
-                        placeholder="Enter nostr pubkey"
-                        on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
-                    />
-                    <button type="button" on:click={addAssignee}>Add Assignee</button>
-                </div>
+                {#if canEditCard}
+                    <div class="add-assignee">
+                        <input
+                            bind:value={newAssignee}
+                            placeholder="Enter nostr pubkey"
+                            on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
+                        />
+                        <button type="button" on:click={addAssignee}>Add Assignee</button>
+                    </div>                   
+                {/if}                
             </div>
 
             <div class="section">
@@ -181,6 +201,7 @@
                         </div>
                     {/each}
                 </div>
+                {#if canEditCard}
                 <div class="add-attachment">
                     <input
                         bind:value={newAttachment}
@@ -190,6 +211,7 @@
                     />
                     <button type="button" on:click={addAttachment}>Add Link</button>
                 </div>
+                {/if}
             </div>
         </div>
 
@@ -197,6 +219,7 @@
             <button type="button" class="cancel" on:click={onClose}>
                 Cancel
             </button>
+            {#if canEditCard}
             <button 
                 type="button" 
                 class="save" 
@@ -205,6 +228,7 @@
             >
                 {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
+            {/if}
         </footer>
     </div>
 </div>

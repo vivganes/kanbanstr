@@ -4,6 +4,7 @@
     import type { Card } from '../stores/kanban';
     import CardDetails from './CardDetails.svelte';
     import ZapModal from './ZapModal.svelte';
+    import type { NDKKind } from '@nostr-dev-kit/ndk';
 
     export let card: Card;
     export let boardId: string;
@@ -17,6 +18,26 @@
     let zapError: string | null = null;
     let showZapModal = false;
     let zapAmount = 0;
+    let isWebLnEnabled = window.hasOwnProperty('webln');
+
+    let currentUser: any = null;
+    let loginMethod: string | null = null;
+
+    onMount(() => {
+        const unsubscribe = ndkInstance.store.subscribe(state => {
+            currentUser = state.user;
+            loginMethod = state.loginMethod;
+        });
+
+        return unsubscribe;
+    });
+
+    // This can be used for likes, comments, etc.
+    $: canReactOnCard = currentUser && 
+                 loginMethod !== 'readonly' && 
+                 loginMethod !== 'npub';
+
+
 
     function copyPermalink() {
         if (copyTimeout) clearTimeout(copyTimeout);
@@ -71,7 +92,7 @@
     // Add this function to load zap amount
     async function loadZapAmount() {
         try {
-            zapAmount = await ndkInstance.getZapAmount(card.id);
+            zapAmount = await ndkInstance.getZapAmount(30302 as NDKKind,card.pubkey,card.dTag);
         } catch (error) {
             console.error('Failed to load zap amount:', error);
         }
@@ -92,19 +113,6 @@
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
         <div class="card-actions">
-            <div class="zap-container">
-                <button 
-                    class="zap-button" 
-                    on:click={handleZap}
-                    disabled={isZapping}
-                    title="Send sats via Lightning"
-                >
-                    ⚡
-                </button>
-                {#if zapAmount > 0}
-                    <span class="zap-amount">{formatAmount(zapAmount)}</span>
-                {/if}
-            </div>
             <button 
                 class="permalink-button" 
                 on:click|stopPropagation={copyPermalink}
@@ -120,18 +128,50 @@
     </div>
 
     <div class="card-footer" on:click={openDetails}>
-        {#if card.assignees && card.assignees.length > 0}
-            <div class="assignees">
-                {#each card.assignees as assignee}
-                    <span class="assignee">{formatPubkey(assignee)}</span>
-                {/each}
-            </div>
+        {#if !(!card.assignees || card.assignees.length === 0) && (!card.attachments || card.attachments.length === 0)}            
+        <div class="footer-row">
+            {#if card.assignees && card.assignees.length > 0}
+                <div class="assignees">
+                    {#each card.assignees as assignee}
+                        <span class="assignee">{formatPubkey(assignee)}</span>
+                    {/each}
+                </div>
+            {/if}
+            {#if card.attachments && card.attachments.length > 0}
+                <div class="attachments">
+                    <span>📎 {card.attachments.length}</span>
+                </div>
+            {/if}
+        </div>
         {/if}
-        {#if card.attachments && card.attachments.length > 0}
-            <div class="attachments">
-                <span>📎 {card.attachments.length}</span>
+        <div class="footer-row actions-row">
+            <div class="zap-container">
+                {#if !isZapping}
+                    <button 
+                        class="zap-button" 
+                        on:click={handleZap}
+                        disabled={!isWebLnEnabled}
+                        title={isWebLnEnabled ? "Send sats via Lightning": "WebLN is not enabled. So, you cannot zap!"}
+                    >
+                        ⚡
+                        {#if zapAmount > 0}
+                            <span class="zap-amount">{formatAmount(zapAmount)}</span>
+                        {/if}
+                    </button>
+                {:else}                 
+                    <button 
+                        class="zap-button pulse-animation" 
+                        disabled
+                        title="Sending sats..."
+                    >
+                        ⚡
+                        {#if zapAmount > 0}
+                            <span class="zap-amount">{formatAmount(zapAmount)}</span>
+                        {/if}
+                    </button>
+                {/if}
             </div>
-        {/if}
+        </div>
     </div>
 </div>
 
@@ -178,11 +218,49 @@
 
     .card-footer {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        flex-direction: column;
+        gap: 0.5rem;
         margin-top: 0.5rem;
         font-size: 0.8rem;
         color: #666;
+    }
+
+    .footer-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .actions-row {
+    }
+
+    .zap-container {
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    .zap-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.4rem;
+        background: #f5f5f5;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: all 0.2s;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .actions-row {
+            border-top-color: #333;
+        }
+
+        .zap-button {
+            background: #2d2d2d;
+        }
     }
 
     .assignees {
@@ -248,16 +326,37 @@
         opacity: 0.6;
         border-radius: 4px;
         transition: opacity 0.2s, background-color 0.2s;
-        color: #ffd700;
     }
+
+    @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.5);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+    .pulse-animation {
+        animation: pulse 1s infinite;
+    }
+
 
     .zap-button:hover:not(:disabled) {
         opacity: 1;
-        background: rgba(255, 215, 0, 0.1);
+        background: rgba(132, 0, 255, 0.1);
+    }
+
+    .zap-button:hover:is(:disabled) {
+        background: rgba(132, 0, 255, 0.1);
     }
 
     .zap-button:disabled {
-        opacity: 0.3;
         cursor: not-allowed;
     }
 
@@ -271,30 +370,22 @@
     }
 
     @media (prefers-color-scheme: dark) {
-        .zap-button {
-            color: #ffd700;
+
+        .permalink-button{
+            color:#333;
         }
+
 
         .zap-button:hover:not(:disabled) {
             background: rgba(255, 215, 0, 0.2);
         }
     }
 
-    .zap-container {
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
-
     .zap-amount {
         font-size: 0.8rem;
-        color: #ffd700;
+        color: #1e1855;
         font-weight: 500;
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .zap-amount {
-            color: #ffd700;
-        }
+        padding-right: 0.5rem;
+        margin-left: -0.25rem;
     }
 </style> 

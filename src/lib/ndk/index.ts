@@ -4,7 +4,9 @@ import NDK, {
     NDKUser,
     NDKZapper,
     type NDKSigner,
-    type NDKPaymentConfirmation
+    NDKKind,
+    type NDKFilter,
+    NDKEvent
 } from '@nostr-dev-kit/ndk';
 import { writable, type Writable } from 'svelte/store';
 import type { Card } from '../stores/kanban';
@@ -130,12 +132,21 @@ class NDKInstance {
         await this._ndk.connect();
     }
 
+    async initializeWalletForZapping(){
+        if(this._ndk){
+            const wallet = new NDKWebLNWallet();
+            this._ndk.wallet = wallet;
+        }        
+    }
+
     async loginWithNsec(nsec: string): Promise<void> {
         try {
             const signer = new NDKPrivateKeySigner(nsec);
             await this.initNDK(signer);
             
             if (!this._ndk) throw new Error('NDK not initialized');
+
+            this.initializeWalletForZapping();
             
             const user = await signer.user();
             await user.fetchProfile();
@@ -216,6 +227,8 @@ class NDKInstance {
             await this.initNDK(signer, extensionRelays);
             
             if (!this._ndk) throw new Error('NDK not initialized');
+
+            this.initializeWalletForZapping();
             
             const user = await signer.user();
             await user.fetchProfile();
@@ -306,9 +319,6 @@ class NDKInstance {
                 ids: [card.id],
             });
            
-            const wallet = new NDKWebLNWallet();
-            this._ndk.wallet = wallet;
-
             const zapper = new NDKZapper(cardEvent!, amount*1000);
             if (comment) {
                 zapper.comment = comment;
@@ -327,13 +337,21 @@ class NDKInstance {
         }
     }
 
-    async getZapAmount(eventId: string): Promise<number> {
+    getZapAmountFromZapEvent(event: NDKEvent){
+        const zapDescription = event.tags.find(t => t[0] === 'description')![1];
+        const zapDescriptionObj = JSON.parse(zapDescription);
+        const zapAmount = zapDescriptionObj.tags.find(t => t[0] === 'amount')![1];
+        return parseInt(zapAmount)/1000;
+    }
+
+    async getZapAmount(kind: NDKKind, pubkey: string, dTag: string): Promise<number> {
         try {
             if (!this._ndk) throw new Error('NDK not initialized');
 
-            const filter = {
+
+            const filter: NDKFilter = {
                 kinds: [9735],
-                '#e': [eventId]
+                '#a': [kind + ":" + pubkey + ":" + dTag]
             };
 
             const events = await this._ndk.fetchEvents(filter);
@@ -341,11 +359,7 @@ class NDKInstance {
 
             for (const event of events) {
                 try {
-                    // Get amount from tags
-                    const amountTag = event.tags.find(t => t[0] === 'amount');
-                    if (amountTag) {
-                        totalAmount += parseInt(amountTag[1], 10);
-                    }
+                    totalAmount += this.getZapAmountFromZapEvent(event);
                 } catch (error) {
                     console.error('Error processing zap event:', error);
                 }

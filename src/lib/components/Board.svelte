@@ -6,6 +6,7 @@
     import AlertModal from './AlertModal.svelte';
     import ConfirmModal from './ConfirmModal.svelte';
     import ReorderColumnsModal from './ReorderColumnsModal.svelte';
+    import { ndkInstance } from '../ndk';
 
     export let board: KanbanBoard;
     export let initialCardToOpen: { pubkey: string, dTag: string } | undefined = undefined;
@@ -22,8 +23,15 @@
     let pendingColumnDelete: string | null = null;
     let showReorderColumns = false;
     let errorMessage: string | null = null;
+    let currentUser: any = null;
+    let loginMethod: string | null = null;
 
     onMount(() => {
+        const ndkUnsubscribe = ndkInstance.store.subscribe(state => {
+            currentUser = state.user;
+            loginMethod = state.loginMethod;
+        });
+
         const boardSub = kanbanStore.subscribe(state => {
             const boardState = state.boards;
             const boardWithCurrentID = boardState.find(b => b.id === board.id);        
@@ -58,9 +66,10 @@
             }
         };
 
-        const cardsUnsubscribe = loadCards();
+        loadCards();
 
         return () => {
+            ndkUnsubscribe();
             boardSub();
         };
     });
@@ -176,6 +185,11 @@
             showAlert = true;
         }
     }
+
+    $: canEdit = currentUser && 
+                 loginMethod !== 'readonly' && 
+                 loginMethod !== 'npub' && 
+                 currentUser.pubkey === board.pubkey;
 </script>
 
 <div class="board">
@@ -185,10 +199,20 @@
             <p>{board.description}</p>
         </div>
         <div class="header-actions">
-            <button class="board-btn" on:click={() => showReorderColumns = true}>
+            <button 
+                class="board-btn" 
+                on:click={() => showReorderColumns = true}
+                disabled={!canEdit}
+                title={!canEdit ? "Only the board owner can reorder columns" : ""}
+            >
                 ⋮⋮ Reorder Columns
             </button>
-            <button class="add-column-btn" on:click={() => showAddColumn = true}>
+            <button 
+                class="add-column-btn" 
+                on:click={() => showAddColumn = true}
+                disabled={!canEdit}
+                title={!canEdit ? "Only the board owner can add columns" : ""}
+            >
                 + Add Column
             </button>
         </div>
@@ -384,7 +408,14 @@
         background: #ebecf0;
     }
 
-    
+    .board-btn:disabled,
+    .add-column-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        /* Keep the hover style even when disabled for better UX */
+        pointer-events: auto;
+    }
+
     @media (prefers-color-scheme: dark) {
         .board {
             color: #333;
@@ -402,6 +433,10 @@
             color: #333;
         }
 
-
+        .board-btn:disabled:hover,
+        .add-column-btn:disabled:hover {
+            background: #1e1855;
+            opacity: 0.5;
+        }
     }
 </style> 
