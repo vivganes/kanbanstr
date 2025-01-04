@@ -22,11 +22,28 @@
 
     let currentUser: any = null;
     let loginMethod: string | null = null;
+    let zapMethod = undefined;
+    let canUserZap = false;
+    let zapImpossibleReason: string|undefined = undefined;
 
     onMount(() => {
         const unsubscribe = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
+            zapMethod = state.zapMethod;
+
+            if(zapMethod === 'nwc'){
+                canUserZap = true;
+            } else if(zapMethod === 'webln') {
+                if(isWebLnEnabled){
+                    canUserZap= true;
+                    zapImpossibleReason = undefined;
+                } else {
+                    zapImpossibleReason = "WebLN is not enabled. So, you cannot zap!"
+                }
+            } else {
+                zapImpossibleReason = "Zap method not configured. Configure it in settings to zap!"
+            }
         });
 
         return {
@@ -152,8 +169,8 @@
                     <button 
                         class="zap-button" 
                         on:click={handleZap}
-                        disabled={!isWebLnEnabled}
-                        title={isWebLnEnabled ? "Send sats via Lightning": "WebLN is not enabled. So, you cannot zap!"}
+                        disabled={!canUserZap}
+                        title={canUserZap ? "Send sats via Lightning": zapImpossibleReason}
                     >
                         ⚡
                         {#if zapAmount > 0}

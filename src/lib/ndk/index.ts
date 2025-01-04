@@ -6,11 +6,13 @@ import NDK, {
     type NDKSigner,
     NDKKind,
     type NDKFilter,
-    NDKEvent
+    NDKEvent,
+    type NDKZapSplit,
+    type NDKPaymentConfirmation
 } from '@nostr-dev-kit/ndk';
 import { writable, type Writable } from 'svelte/store';
-import type { Card } from '../stores/kanban';
-import { NDKNWCWallet, NDKWebLNWallet } from '@nostr-dev-kit/ndk-wallet';
+import { kanbanStore, type Card } from '../stores/kanban';
+import { NDKNWCWallet, NDKWebLNWallet, type NDKWallet } from '@nostr-dev-kit/ndk-wallet';
 
 export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
 
@@ -18,13 +20,21 @@ interface NDKState {
     user: NDKUser | null;
     loginMethod: LoginMethod | null;
     isReady: boolean;
-    isLoggingInNow: boolean;
+    isLoggingInNow: boolean;    
+    nwcString: string | null;
+    zapMethod: 'webln' | 'nwc' | undefined;
+    zappingNow: boolean;
 }
 
 interface StoredLoginData {
     loginMethod: LoginMethod;
     nsec?: string;
     npub?: string;
+}
+
+interface StoredWalletData {    
+    nwcString: string | null;
+    zapMethod: 'webln' | 'nwc' | undefined;
 }
 
 const STORAGE_KEY = 'nostr_kanban_login';
@@ -37,13 +47,18 @@ const DEFAULT_RELAYS = [
 class NDKInstance {
     private static instance: NDKInstance;
     private _ndk: NDK | null = null;
+    private nwcString: string | null = null;
+    private zapMethod: 'webln' | 'nwc' | undefined;
     
     // Store to track login state
     private state: Writable<NDKState> = writable({
         user: null,
         loginMethod: null,
         isReady: false,
-        isLoggingInNow: false
+        isLoggingInNow: false,        
+        nwcString: null,
+        zapMethod: undefined,
+        zappingNow: false
     });
 
     private constructor() {
@@ -101,12 +116,49 @@ class NDKInstance {
             return null;
         }
     }
+    private getStoredZapWalletData(): StoredWalletData {
+        try {
+            const zapMethodFromLocalStorage = localStorage.getItem("kanbanstr_zap_method");
+            const nwcStringFromLocalStorage = localStorage.getItem("kanbanstr_nwc");
+            
+            let zapMethod: 'webln' | 'nwc' | undefined = undefined;
+            let nwcString: string | null = null;
+
+            if (zapMethodFromLocalStorage === 'webln' || zapMethodFromLocalStorage === 'nwc') {
+                zapMethod = zapMethodFromLocalStorage;
+            }
+
+            if (nwcStringFromLocalStorage) {
+                nwcString = nwcStringFromLocalStorage;
+            }
+
+            return {
+                zapMethod,
+                nwcString
+            };
+        } catch (error) {
+            console.error('Failed to retrieve zap wallet data:', error);
+            return {
+                zapMethod: undefined,
+                nwcString: null
+            };
+        }
+    }
 
     private clearStoredLoginData() {
         try {
             localStorage.removeItem(STORAGE_KEY);
         } catch (error) {
             console.error('Failed to clear login data:', error);
+        }
+    }
+
+    private clearStoredZapWalletData() {
+        try {
+            localStorage.removeItem("kanbanstr_zap_method");
+            localStorage.removeItem("kanbanstr_nwc");
+        } catch (error) {
+            console.error('Failed to clear zap wallet data:', error);
         }
     }
 
@@ -140,10 +192,61 @@ class NDKInstance {
     }
 
     async initializeWalletForZapping(){
+        const {zapMethod, nwcString } = this.getStoredZapWalletData();    
+        this.zapMethod = zapMethod;
+        this.nwcString = nwcString;    
         if(this._ndk){
-            const wallet = new NDKWebLNWallet();
-            this._ndk.wallet = wallet;
-        }        
+            if(zapMethod === 'nwc'){                
+                const wallet = new NDKNWCWallet(this._ndk);
+                console.log("Initializing with pairing code: "+ nwcString)
+                await wallet.initWithPairingCode(nwcString!);
+
+                this._ndk.wallet = wallet;
+            } else if (this.zapMethod === 'webln'){
+                const wallet = new NDKWebLNWallet();
+                this._ndk.wallet = wallet;
+            }   
+            
+            // later call 
+            // zapper.zap*()
+        }  
+        
+        return {zapMethod, nwcString};
+    }
+
+    public async setNWCString(nwcString: string|null) {
+        try {
+            // Here you could validate the NWC string format if needed
+            this.state.update(state => ({
+                ...state,
+                nwcString
+            }));
+
+            // Store in localStorage for persistence
+            localStorage.setItem('kanbanstr_nwc', nwcString!);
+        } catch (error) {
+            console.error('Failed to set NWC string:', error);
+            throw error;
+        }
+    }
+
+    public async setZapMethod(method: 'webln' | 'nwc' | undefined) {
+        try {
+            this.state.update(state => ({
+                ...state,
+                zapMethod: method
+            }));
+
+            // Store in localStorage
+            if (method) {
+                localStorage.setItem('kanbanstr_zap_method', method);
+            } else {
+                localStorage.removeItem('kanbanstr_zap_method');
+            }
+        } catch (error) {
+            console.error('Failed to set zap method:', error);
+            throw error;
+        }
     }
 
     async loginWithNsec(nsec: string): Promise<void> {
@@ -153,7 +256,7 @@ class NDKInstance {
             
             if (!this._ndk) throw new Error('NDK not initialized');
 
-            this.initializeWalletForZapping();
+            await this.initializeWalletForZapping();
             
             const user = await signer.user();
             await user.fetchProfile();
@@ -162,7 +265,10 @@ class NDKInstance {
                 user,
                 loginMethod: 'nsec',
                 isReady: true,
-                isLoggingInNow: false
+                isLoggingInNow: false,
+                zapMethod: this.zapMethod,
+                nwcString: this.nwcString,
+                zappingNow: false
             });
 
             // Store login data
@@ -188,7 +294,10 @@ class NDKInstance {
                 user,
                 loginMethod: 'npub',
                 isReady: true,
-                isLoggingInNow: false
+                isLoggingInNow: false,                
+                zapMethod: this.zapMethod,
+                nwcString: this.nwcString,
+                zappingNow: false
             });
 
             // Store login data
@@ -237,7 +346,7 @@ class NDKInstance {
             
             if (!this._ndk) throw new Error('NDK not initialized');
 
-            this.initializeWalletForZapping();
+            await this.initializeWalletForZapping();
             
             const user = await signer.user();
             await user.fetchProfile();
@@ -245,7 +354,10 @@ class NDKInstance {
                 user,
                 loginMethod: 'nip07',
                 isReady: true,
-                isLoggingInNow: false
+                isLoggingInNow: false,                
+                zapMethod: this.zapMethod,
+                nwcString: this.nwcString,
+                zappingNow: false
             });
 
             // Store login data
@@ -275,7 +387,10 @@ class NDKInstance {
                 user,
                 loginMethod: 'readonly',
                 isReady: true,
-                isLoggingInNow: false
+                isLoggingInNow: false,
+                zapMethod: this.zapMethod,
+                nwcString: this.nwcString,
+                zappingNow: false
             });
 
             // Store login data
@@ -294,11 +409,16 @@ class NDKInstance {
         this.state.set({
             user: null,
             loginMethod: null,
-            isReady: false
+            isReady: false,
+            isLoggingInNow: false,
+            nwcString: null,
+            zapMethod: undefined,
+            zappingNow: false
         });
         
         // Clear stored login data
         this.clearStoredLoginData();
+        this.clearStoredZapWalletData();
     }
 
     canWrite(): boolean {
@@ -310,7 +430,11 @@ class NDKInstance {
         let currentState: NDKState = {
             user: null,
             loginMethod: null,
-            isReady: false
+            isReady: false,
+            isLoggingInNow: false,
+            nwcString: null,
+            zapMethod: undefined,
+            zappingNow: false
         };
         
         this.state.subscribe(state => {
@@ -324,6 +448,10 @@ class NDKInstance {
         try {
             if (!this._ndk) throw new Error('NDK not initialized');
             if (!this._ndk.signer) throw new Error('No signer available');
+            this.state.update(state => ({
+                ...state,
+                zappingNow: true
+            }));
 
             // get card event from NDK
             const cardEvent = await this._ndk.fetchEvent({
@@ -334,6 +462,21 @@ class NDKInstance {
             if (comment) {
                 zapper.comment = comment;
             }
+            zapper.on(
+                'split:complete',
+                (split: NDKZapSplit, info: NDKPaymentConfirmation | Error | undefined) => {
+                    console.log('split:complete', split, info);
+                }
+            );
+            zapper.on('complete', (res) => {
+                console.log('complete', res);
+                this.state.update(state => ({
+                    ...state,
+                    zappingNow: false
+                }));
+            });
+
+            console.log("About to zap");
             const zapDatas = await zapper.zap();
             console.log('zap data: '+ zapDatas);
             for (let zapdata of zapDatas.keys()){

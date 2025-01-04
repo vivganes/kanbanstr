@@ -28,21 +28,23 @@ export interface Card {
     assignees?: string[]; // Array of nostr pubkeys (from zap tags)
 }
 
+interface KanbanState {
+    boards: KanbanBoard[];
+    myBoards: KanbanBoard[];
+    cards: Map<string, Card[]>;
+    loading: boolean;
+    currentUser: NDKUser | null;
+    error: string | null;
+}
+
 function createKanbanStore() {
-    const { subscribe, set, update } = writable<{
-        boards: KanbanBoard[];
-        myBoards: KanbanBoard[];
-        cards: Map<string, Card[]>;
-        loading: boolean;
-        currentUser: NDKUser | null;
-        error: string | null;
-    }>({
+    const { subscribe, set, update } = writable<KanbanState>({
         boards: [],
         myBoards: [],
         cards: new Map(),
         loading: false,
         currentUser: null,
-        error: null
+        error: null,
     });
 
     let ndk: NDK;
@@ -550,6 +552,8 @@ function createKanbanStore() {
         }
     }
 
+    
+
     return {
         subscribe,
         init,
@@ -561,7 +565,7 @@ function createKanbanStore() {
         loadBoardByPubkeyAndId,
         updateBoard,
         updateCard,
-        hasNDK
+        hasNDK,
     };
 }
 

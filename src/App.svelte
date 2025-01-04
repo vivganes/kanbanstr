@@ -5,6 +5,7 @@
   import Login from './lib/components/Login.svelte';
   import BoardsList from './lib/components/BoardsList.svelte';
   import BoardView from './lib/components/BoardView.svelte';
+  import Settings from './lib/components/Settings.svelte';
   import ConsentModal from './lib/components/ConsentModal.svelte';
 
   let user = null;
@@ -15,7 +16,8 @@
   const routes = {
     '/': BoardsList,
     '/board/:pubkey/:id': BoardView,
-    '/board/:pubkey/:id/:cardpubkey/:cardDTag': BoardView
+    '/board/:pubkey/:id/:cardpubkey/:cardDTag': BoardView,
+    '/settings': Settings
   };
 
   onMount(() => {

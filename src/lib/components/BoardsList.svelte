@@ -213,15 +213,15 @@
                 <span class="read-only-badge">Read Only</span>
             {/if}
         </div>
-        
+        <div class="header-right">            
+            <a href="#/settings" class="settings-link">Settings</a>
+            {#if currentLoginMethod !== 'npub' && currentLoginMethod !== 'readonly'}
+                <button on:click={() => showCreateBoard = true}>Create Board</button>
+            {/if}
+            <button class="logout" on:click={handleLogout}>Logout</button>
+        </div>
     </header>
-    <div class="header-right">
-        <div class="user-npub">Welcome {currentUser?.profile?.displayName || 'anonymous' }!!!</div>
-        {#if currentLoginMethod !== 'npub' && currentLoginMethod !== 'readonly'}
-            <button on:click={() => showCreateBoard = true}>Create Board</button>
-        {/if}
-        <button class="logout" on:click={handleLogout}>Logout</button>
-    </div>
+    <div class="user-npub">Welcome {currentUser?.profile?.displayName || 'anonymous' }!!!</div>
 
     <!-- Add tabs -->
     <div class="tabs">
@@ -564,5 +564,16 @@
         .creator-info {
             color: #999;
         }
+    }
+
+    .settings-link {
+        padding: 0.75rem;
+        color: #0052cc;
+        text-decoration: none;
+        border-radius: 4px;
+    }
+
+    .settings-link:hover {
+        background: rgba(0, 82, 204, 0.1);
     }
 </style> 
