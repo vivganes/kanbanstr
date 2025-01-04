@@ -10,15 +10,15 @@
         id: string, 
         pubkey: string,
         cardpubkey?: string,
-        cardId?: string 
+        cardDTag?: string 
     };
     
     let board: KanbanBoard | null = null;
     let loading = true;
     let error: string | null = null;
-    let initialCardToOpen = params.cardId ? {
+    let initialCardToOpen = params.cardDTag ? {
         pubkey: params.cardpubkey!,
-        id: params.cardId
+        dTag: params.cardDTag
     } : undefined;
 
     onMount(() => {

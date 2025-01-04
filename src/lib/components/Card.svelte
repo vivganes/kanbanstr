@@ -21,7 +21,7 @@
     function copyPermalink() {
         if (copyTimeout) clearTimeout(copyTimeout);
 
-        const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/${card.pubkey}/${card.id}`;
+        const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/${card.pubkey}/${card.dTag}`;
         
         navigator.clipboard.writeText(permalink).then(() => {
             copySuccess = true;

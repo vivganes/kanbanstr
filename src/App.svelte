@@ -15,7 +15,7 @@
   const routes = {
     '/': BoardsList,
     '/board/:pubkey/:id': BoardView,
-    '/board/:pubkey/:id/:cardpubkey/:cardId': BoardView
+    '/board/:pubkey/:id/:cardpubkey/:cardDTag': BoardView
   };
 
   onMount(() => {
