@@ -4,6 +4,7 @@
     import type { Card } from '../stores/kanban';
     import CardDetails from './CardDetails.svelte';
     import ZapModal from './ZapModal.svelte';
+    import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind } from '@nostr-dev-kit/ndk';
 
     export let card: Card;
@@ -56,7 +57,11 @@
                  loginMethod !== 'readonly' && 
                  loginMethod !== 'npub';
 
+    // Add this computed property
+    $: lastUpdated = card.created_at ? formatTimeAgo(card.created_at) : '';
 
+    // Add this computed property
+    $: fullDateTime = card.created_at ? formatDateTime(card.created_at) : '';
 
     function copyPermalink() {
         if (copyTimeout) clearTimeout(copyTimeout);
@@ -145,6 +150,12 @@
             </button>
         </div>
     </div>
+
+    {#if lastUpdated}
+        <div class="last-updated" title={fullDateTime}>
+            Updated {lastUpdated}
+        </div>
+    {/if}
 
     <div class="card-footer" on:click={openDetails}>
         {#if !(!card.assignees || card.assignees.length === 0) && (!card.attachments || card.attachments.length === 0)}            
@@ -408,5 +419,19 @@
         font-weight: 500;
         padding-right: 0.5rem;
         margin-left: -0.25rem;
+    }
+
+    .last-updated {
+        font-size: 0.75rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+        font-style: italic;
+        cursor: help;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .last-updated {
+            color: #999;
+        }
     }
 </style> 

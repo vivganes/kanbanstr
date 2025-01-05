@@ -200,15 +200,13 @@ class NDKInstance {
                 const wallet = new NDKNWCWallet(this._ndk);
                 console.log("Initializing with pairing code: "+ nwcString)
                 await wallet.initWithPairingCode(nwcString!);
+                wallet.getInfo();
 
                 this._ndk.wallet = wallet;
             } else if (this.zapMethod === 'webln'){
                 const wallet = new NDKWebLNWallet();
                 this._ndk.wallet = wallet;
-            }   
-            
-            // later call 
-            // zapper.zap*()
+            }            
         }  
         
         return {zapMethod, nwcString};

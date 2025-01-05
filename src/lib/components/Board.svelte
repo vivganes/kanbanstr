@@ -7,6 +7,7 @@
     import ConfirmModal from './ConfirmModal.svelte';
     import ReorderColumnsModal from './ReorderColumnsModal.svelte';
     import { ndkInstance } from '../ndk';
+    import { push } from 'svelte-spa-router';
 
     export let board: KanbanBoard;
     export let initialCardToOpen: { pubkey: string, dTag: string } | undefined = undefined;
@@ -186,6 +187,10 @@
         }
     }
 
+    function handleBack() {
+        push('/');
+    }
+
     $: canEdit = currentUser && 
                  loginMethod !== 'readonly' && 
                  loginMethod !== 'npub' && 
@@ -194,11 +199,9 @@
 
 <div class="board">
     <header class="board-header">
-        <div class="header-content">
-            <h2>{board.title}</h2>
-            <p>{board.description}</p>
-        </div>
         <div class="header-actions">
+            <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
+
             <button 
                 class="board-btn" 
                 on:click={() => showReorderColumns = true}
@@ -215,6 +218,12 @@
             >
                 + Add Column
             </button>
+        </div>
+        <div class="header-content">
+            <div class="title-section">
+                <h2>{board.title}</h2>                
+            </div>
+            <p>{board.description}</p>
         </div>
     </header>
     
@@ -307,10 +316,10 @@
     }
 
     .board-header {
-        display: flex;
         justify-content: space-between;
         align-items: flex-start;
         margin-bottom: 1rem;
+        margin-top: 1rem;
     }
 
     .board-header h2 {
@@ -384,6 +393,7 @@
 
     .header-content {
         flex: 1;
+        margin-top:1rem;
     }
 
     .header-actions {
@@ -437,6 +447,54 @@
         .add-column-btn:disabled:hover {
             background: #1e1855;
             opacity: 0.5;
+        }
+    }
+
+    .board-header {
+        margin-bottom: 1rem;
+    }
+
+    .title-section {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .title-section h2 {
+        margin: 0;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .back-button {
+        padding: 0.5rem 1rem;
+        background: #f4f5f7;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #42526e;
+    }
+
+    .back-button:hover {
+        background: #e4e6e8;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .back-button {
+            background: #1e1855;
+            color: #fff;
+        }
+
+        .back-button:hover {
+            background: #2e2955;
         }
     }
 </style> 

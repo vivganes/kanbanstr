@@ -73,7 +73,6 @@
 
 <div class="board-view">
     <h1>Kanbanstr</h1>
-    <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
 
     {#if loading}
         <div class="loading">Loading board...</div>
@@ -96,21 +95,7 @@
         background: linear-gradient(90deg, #cc00b1, #5638ff);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-    }
-
-    .back-button {
-        padding: 0.5rem 1rem;
-        background: #f4f5f7;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .back-button:hover {
-        background: #e4e6e8;
+        margin-bottom: 1rem;
     }
 
     .loading, .error {

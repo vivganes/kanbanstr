@@ -26,6 +26,7 @@ export interface Card {
     order: number;
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from zap tags)
+    created_at: number;
 }
 
 interface KanbanState {
@@ -168,7 +169,8 @@ function createKanbanStore() {
                         description: content.description,
                         status: content.status,
                         order: content.order,
-                        attachments: content.attachments || []
+                        attachments: content.attachments || [],
+                        created_at: event.created_at!
                     });
                 } catch (error) {
                     console.error('Failed to parse card event:', error);
@@ -287,7 +289,8 @@ function createKanbanStore() {
                     description: card.description,
                     status: card.status,
                     order: card.order,
-                    attachments: card.attachments
+                    attachments: card.attachments,
+                    created_at: cardEvent.created_at!
                 });
                 newCards.set(boardId, cards);
                 return {
