@@ -11,8 +11,10 @@ import NDK, {
     type NDKPaymentConfirmation
 } from '@nostr-dev-kit/ndk';
 import { writable, type Writable } from 'svelte/store';
-import { kanbanStore, type Card } from '../stores/kanban';
+import { type Card } from '../stores/kanban';
 import { NDKNWCWallet, NDKWebLNWallet, type NDKWallet } from '@nostr-dev-kit/ndk-wallet';
+import { webln } from "alby-js-sdk";
+
 
 export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
 
@@ -49,6 +51,7 @@ class NDKInstance {
     private _ndk: NDK | null = null;
     private nwcString: string | null = null;
     private zapMethod: 'webln' | 'nwc' | undefined;
+    private user: NDKUser | null = null;
     
     // Store to track login state
     private state: Writable<NDKState> = writable({
@@ -121,20 +124,17 @@ class NDKInstance {
             const zapMethodFromLocalStorage = localStorage.getItem("kanbanstr_zap_method");
             const nwcStringFromLocalStorage = localStorage.getItem("kanbanstr_nwc");
             
-            let zapMethod: 'webln' | 'nwc' | undefined = undefined;
-            let nwcString: string | null = null;
-
             if (zapMethodFromLocalStorage === 'webln' || zapMethodFromLocalStorage === 'nwc') {
-                zapMethod = zapMethodFromLocalStorage;
+                this.zapMethod = zapMethodFromLocalStorage;
             }
 
             if (nwcStringFromLocalStorage) {
-                nwcString = nwcStringFromLocalStorage;
+                this.nwcString = nwcStringFromLocalStorage;
             }
 
             return {
-                zapMethod,
-                nwcString
+                zapMethod: this.zapMethod,
+                nwcString: this.nwcString
             };
         } catch (error) {
             console.error('Failed to retrieve zap wallet data:', error);
@@ -191,17 +191,13 @@ class NDKInstance {
         await this._ndk.connect();
     }
 
-    async initializeWalletForZapping(){
-        const {zapMethod, nwcString } = this.getStoredZapWalletData();    
-        this.zapMethod = zapMethod;
-        this.nwcString = nwcString;    
+    async initializeWalletForZapping(){ 
         if(this._ndk){
-            if(zapMethod === 'nwc'){                
-                const wallet = new NDKNWCWallet(this._ndk);
-                console.log("Initializing with pairing code: "+ nwcString)
-                await wallet.initWithPairingCode(nwcString!);
-                wallet.getInfo();
-
+            if(this.zapMethod === 'nwc'){                
+                const wallet = new NDKNWCWallet(new NDK({
+                    explicitRelayUrls: [this.getRelayFromNwcString(this.nwcString!)!]
+                }));
+                await wallet.initWithPairingCode(this.nwcString!);
                 this._ndk.wallet = wallet;
             } else if (this.zapMethod === 'webln'){
                 const wallet = new NDKWebLNWallet();
@@ -209,7 +205,7 @@ class NDKInstance {
             }            
         }  
         
-        return {zapMethod, nwcString};
+        return {zapMethod: this.zapMethod, nwcString: this.nwcString};
     }
 
     public async setNWCString(nwcString: string|null) {
@@ -247,6 +243,11 @@ class NDKInstance {
         }
     }
 
+    getRelayFromNwcString(nwcString: string): string | undefined {
+        const u = new URL(nwcString);
+        return u.searchParams.get('relay') || undefined;
+    }
+
     async loginWithNsec(nsec: string): Promise<void> {
         try {
             const signer = new NDKPrivateKeySigner(nsec);
@@ -254,9 +255,10 @@ class NDKInstance {
             
             if (!this._ndk) throw new Error('NDK not initialized');
 
-            await this.initializeWalletForZapping();
+            this.getStoredZapWalletData();
             
-            const user = await signer.user();
+            this.user = await signer.user();
+            const user = this.user;
             await user.fetchProfile();
             console.log("Name:"+ user.profile?.displayName)
             this.state.set({
@@ -286,7 +288,8 @@ class NDKInstance {
             await this.initNDK();
             if (!this._ndk) throw new Error('NDK not initialized');
             
-            const user = this._ndk.getUser({npub});
+            this.user = this._ndk.getUser({npub});
+            const user = this.user;
             await user.fetchProfile();
             this.state.set({
                 user,
@@ -344,9 +347,10 @@ class NDKInstance {
             
             if (!this._ndk) throw new Error('NDK not initialized');
 
-            await this.initializeWalletForZapping();
+            this.getStoredZapWalletData();
             
-            const user = await signer.user();
+            this.user = await signer.user();
+            const user = this.user;
             await user.fetchProfile();
             this.state.set({
                 user,
@@ -376,8 +380,9 @@ class NDKInstance {
             
             if (!this._ndk) throw new Error('NDK not initialized');
             const npub = (await signer.user()).npub;            
-            const user = this._ndk.getUser({npub});
-            user.profile = {
+            this.user = this._ndk.getUser({npub});
+            const user = this.user;
+            this.user.profile = {
                 displayName: 'Sneaky Sneakerson',
                 image: 'https://robohash.org/sneaky-sneakerson'
             }
@@ -442,10 +447,14 @@ class NDKInstance {
         return currentState;
     }
 
-    async zapCard(card: Card, amount: number = 1000, comment?: string) {
+    async zapCard(card: Card, amount: number = 1000, comment?: string, zapCompleteCallback?: ()=>void): Promise<boolean> {
         try {
+
             if (!this._ndk) throw new Error('NDK not initialized');
             if (!this._ndk.signer) throw new Error('No signer available');
+            if(!this._ndk.wallet){
+                await this.initializeWalletForZapping();
+            }
             this.state.update(state => ({
                 ...state,
                 zappingNow: true
@@ -456,36 +465,60 @@ class NDKInstance {
                 ids: [card.id],
             });
            
-            const zapper = new NDKZapper(cardEvent!, amount*1000);
-            if (comment) {
-                zapper.comment = comment;
-            }
-            zapper.on(
-                'split:complete',
-                (split: NDKZapSplit, info: NDKPaymentConfirmation | Error | undefined) => {
-                    console.log('split:complete', split, info);
-                }
-            );
-            zapper.on('complete', (res) => {
-                console.log('complete', res);
-                this.state.update(state => ({
-                    ...state,
-                    zappingNow: false
-                }));
-            });
-
-            console.log("About to zap");
-            const zapDatas = await zapper.zap();
-            console.log('zap data: '+ zapDatas);
-            for (let zapdata of zapDatas.keys()){
-                console.log("Zap Data: "+ zapdata.pubkey );
-                console.log(JSON.stringify(zapDatas.get(zapdata)));
-            }
+            await this.zapUsingNDKZapper(cardEvent, amount, comment, zapCompleteCallback);
             
             return true;
         } catch (error) {
             console.error('Failed to zap:', error);
             throw error;
+        }
+    }
+
+    private async zapUsingNDKZapper(cardEvent: NDKEvent | null, amount: number, comment: string | undefined, zapCompleteCallback: (() => void) | undefined) {
+        const zapper = new NDKZapper(cardEvent!, amount * 1000);
+
+        if (comment) {
+            zapper.comment = comment;
+        }
+        zapper.on(
+            'split:complete',
+            (split: NDKZapSplit, info: NDKPaymentConfirmation | Error | undefined) => {
+                console.log('split:complete', split, info);
+            }
+        );
+        zapper.on('complete', (res) => {
+            console.log('complete', res);
+            this.state.update(state => ({
+                ...state,
+                zappingNow: false
+            }));
+            if (zapCompleteCallback) {
+                zapCompleteCallback();
+            }
+        });
+
+        console.log("About to zap");
+        // if zapper.zap() finishes within 5 seconds, return the value to zapDatas. Else, return an empty object.
+        let zapDatas;
+        try {
+            const zapPromise = zapper.zap();
+            zapDatas = await Promise.race([
+                zapPromise,
+                new Promise((resolve) => setTimeout(() => resolve(new Map()), 5000))
+            ]);
+            if (!zapDatas) {
+                zapDatas = new Map();
+            }
+        } catch (error) {
+            console.error('Zap failed:', error);
+            zapDatas = new Map();
+        }
+
+        
+        //const zapDatas = await zapper.zap();
+        for (let zapdata of zapDatas.keys()) {
+            console.log("Zap Data: " + zapdata.pubkey);
+            console.log(JSON.stringify(zapDatas.get(zapdata)));
         }
     }
 

@@ -63,6 +63,10 @@
     // Add this computed property
     $: fullDateTime = card.created_at ? formatDateTime(card.created_at) : '';
 
+    function zapComplete(){
+        loadZapAmount();
+    }
+
     function copyPermalink() {
         if (copyTimeout) clearTimeout(copyTimeout);
 
@@ -107,7 +111,7 @@
 
     async function executeZap(amount: number, comment: string) {
         try {
-            await ndkInstance.zapCard(card, amount, comment);
+            await ndkInstance.zapCard(card, amount, comment, zapComplete);
         } catch (error) {
             throw error;
         }
