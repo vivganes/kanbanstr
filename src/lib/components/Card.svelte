@@ -5,7 +5,7 @@
     import CardDetails from './CardDetails.svelte';
     import ZapModal from './ZapModal.svelte';
     import { formatTimeAgo, formatDateTime } from '../utils/date';
-    import type { NDKKind } from '@nostr-dev-kit/ndk';
+    import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
 
     export let card: Card;
     export let boardId: string;
@@ -26,8 +26,17 @@
     let zapMethod = undefined;
     let canUserZap = false;
     let zapImpossibleReason: string|undefined = undefined;
+    let creatorName = 'Unknown';
 
-    onMount(() => {
+    onMount(async () => {       
+        try {
+            const creator = await getUserWithProfileFromPubKey(card.pubkey);
+            creatorName = creator?.profile?.displayName || 'Anonymous';
+        } catch (error) {
+            console.error('Failed to load creator info:', error);
+            creatorName = 'Anonymous';
+        }
+
         const unsubscribe = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -65,6 +74,12 @@
 
     function zapComplete(){
         loadZapAmount();
+    }
+
+    async function getUserWithProfileFromPubKey(pubKey: string): Promise<NDKUser> {
+        const user = ndkInstance.ndk!.getUser({pubkey: pubKey});
+        await user.fetchProfile();
+        return user;
     }
 
     function copyPermalink() {
@@ -155,11 +170,16 @@
         </div>
     </div>
 
-    {#if lastUpdated}
-        <div class="last-updated" title={fullDateTime}>
-            Updated {lastUpdated}
+    <div class="card-meta">
+        <div class="creator-info" title="Creator">
+            🪄 {creatorName}
         </div>
-    {/if}
+        {#if lastUpdated}
+            <div class="last-updated" title={'Last updated at ' + fullDateTime}>
+            🕑 {lastUpdated}
+            </div>
+        {/if}
+    </div>
 
     <div class="card-footer" on:click={openDetails}>
         {#if !(!card.assignees || card.assignees.length === 0) && (!card.attachments || card.attachments.length === 0)}            
@@ -430,11 +450,29 @@
         color: #666;
         margin-bottom: 0.5rem;
         font-style: italic;
-        cursor: help;
     }
 
     @media (prefers-color-scheme: dark) {
         .last-updated {
+            color: #999;
+        }
+    }
+
+    .card-meta {
+        font-size: 0.75rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+       
+
+    }
+
+    .creator-info {
+        font-style: italic;
+        margin-bottom: 0.25rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .card-meta {
             color: #999;
         }
     }
