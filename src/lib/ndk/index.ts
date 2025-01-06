@@ -13,7 +13,6 @@ import NDK, {
 import { writable, type Writable } from 'svelte/store';
 import { type Card } from '../stores/kanban';
 import { NDKNWCWallet, NDKWebLNWallet, type NDKWallet } from '@nostr-dev-kit/ndk-wallet';
-import { webln } from "alby-js-sdk";
 
 
 export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
@@ -43,7 +42,8 @@ const STORAGE_KEY = 'nostr_kanban_login';
 
 const DEFAULT_RELAYS = [
     'wss://relay.damus.io',
-    'wss://nos.lol'
+    'wss://nos.lol',
+    'wss://relay.primal.net'
 ];
 
 class NDKInstance {
