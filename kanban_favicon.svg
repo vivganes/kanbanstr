@@ -1,0 +1,6 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect x="0" y="0" width="21.33" height="64" fill="rgb(70, 130, 180)" /> <!-- Blue -->
+  <rect x="21.33" y="0" width="21.33" height="64" fill="rgb(255, 165, 0)" /> <!-- Orange -->
+  <rect x="42.66" y="0" width="21.33" height="64" fill="rgb(50, 205, 50)" /> <!-- Green -->
+</svg>
