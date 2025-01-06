@@ -24,17 +24,11 @@
     onMount(() => {
         const initialize = async () => {
             try {
-                // Wait for NDK to be ready if not already
                 const unsubscribe = ndkInstance.store.subscribe((state) => {
                     if (state.isReady) {
                         if(!kanbanStore.hasNDK()){
                             kanbanStore.init(ndkInstance.ndk!);
                             loadBoard();
-                            // kanbanStore.subscribe(state => {
-                            //     if(state.loading === false){
-                            //         loadBoard();
-                            //     }
-                            // });
                         } else {
                             loadBoard();
                         }

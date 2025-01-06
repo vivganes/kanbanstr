@@ -8,6 +8,7 @@ export interface KanbanBoard {
     description: string;
     columnMapping: string;
     columns: Column[];
+    isNoZapBoard: boolean;
 }
 
 export interface Column {
@@ -86,7 +87,8 @@ function createKanbanStore() {
                         title: titleTag ? titleTag[1] : 'Untitled Board',
                         description: content.description,
                         columnMapping: content.columnMapping || 'EXACT',
-                        columns: content.columns
+                        columns: content.columns,
+                        isNoZapBoard: content.isNoZapBoard || false
                     });
                 } catch (error) {
                     console.error('Failed to parse board event:', error);
@@ -427,7 +429,8 @@ function createKanbanStore() {
                         title: titleTag ? titleTag[1] : 'Untitled Board',
                         description: content.description,
                         columnMapping: content.columnMapping || 'EXACT',
-                        columns: content.columns
+                        columns: content.columns,
+                        isNoZapBoard: content.isNoZapBoard || false
                     };
                     break; // We only need the first matching board
                 } catch (error) {
@@ -476,7 +479,7 @@ function createKanbanStore() {
             newBoardEvent.content = JSON.stringify({
                 columns: board.columns,
                 columnMapping: board.columnMapping,
-                description: board.description
+                description: board.description,
             });
             newBoardEvent.tags = [
                 ['d', board.id],
@@ -532,7 +535,8 @@ function createKanbanStore() {
                         title: titleTag ? titleTag[1] : 'Untitled Board',
                         description: content.description,
                         columnMapping: content.columnMapping || 'EXACT',
-                        columns: content.columns
+                        columns: content.columns,
+                        isNoZapBoard: content.isNoZapBoard || false
                     });
                 } catch (error) {
                     console.error('Failed to parse board event:', error);

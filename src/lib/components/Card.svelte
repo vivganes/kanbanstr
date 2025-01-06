@@ -12,6 +12,7 @@
     export let boardPubkey: string;
     export let isUnmapped: boolean = false;    
     export let showDetails: boolean = false;
+    export let isNoZapBoard: boolean = false;
 
     let copySuccess = false;
     let copyTimeout: NodeJS.Timeout;
@@ -199,6 +200,7 @@
         </div>
         {/if}
         <div class="footer-row actions-row">
+            {#if !isNoZapBoard}
             <div class="zap-container">
                 {#if !isZapping}
                     <button 
@@ -225,6 +227,7 @@
                     </button>
                 {/if}
             </div>
+            {/if}
         </div>
     </div>
 </div>

@@ -259,6 +259,7 @@
                     onCardDrop={handleCardMove}
                     cardToOpen={cardToOpen}
                     onDeleteColumn={() => handleDeleteColumn(column.name)}
+                    isNoZapBoard={board.isNoZapBoard}
                 />
             {/each}
             {#if showUnmappedColumn}
@@ -270,6 +271,7 @@
                     onCardDrop={handleCardMove}
                     isUnmapped={true}
                     cardToOpen={cardToOpen}
+                    isNoZapBoard={board.isNoZapBoard}
                 />
             {/if}
         {/if}

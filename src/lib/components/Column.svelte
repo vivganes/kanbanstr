@@ -12,6 +12,7 @@
     export let onCardDrop: (cardId: string, targetStatus: string, targetIndex?: number) => Promise<void>;
     export let isUnmapped: boolean = false;
     export let cardToOpen: Card | null = null;
+    export let isNoZapBoard: boolean = false;
     export let onDeleteColumn: () => void;
 
     let showCreateModal = false;
@@ -138,6 +139,7 @@
                     {boardPubkey}
                     {isUnmapped}
                     showDetails={cardToOpen?.id === card.id} 
+                    {isNoZapBoard}
                 />
             </div>
         {/each}
