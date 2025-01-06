@@ -46,7 +46,7 @@
             content: description,
             onUpdate: ({ editor }) => {
                 description = editor.storage.markdown.getMarkdown();
-            }
+            }            
         });
 
         return {

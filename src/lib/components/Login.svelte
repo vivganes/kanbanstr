@@ -64,7 +64,7 @@
                 bind:group={selectedMethod} 
                 value="readonly"
             >
-            Read-only Mode (Generate temporary keys)
+            Read-only Mode (No account needed)
         </label>
         
         <label>

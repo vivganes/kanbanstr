@@ -173,7 +173,7 @@
 
     <div class="card-meta">
         <div class="creator-info" title="Creator">
-            🪄 {creatorName}
+            🪄 {creatorName}<a class="profile-link" href={`https://primal.net/p/${card.pubkey}`} target="_blank" title="Visit profile">🔗</a>
         </div>
         {#if lastUpdated}
             <div class="last-updated" title={'Last updated at ' + fullDateTime}>
@@ -266,6 +266,10 @@
 
     .card:active {
         cursor: grabbing;
+    }
+    
+    .profile-link:hover{
+        font-weight: bold;
     }
 
     h4 {
