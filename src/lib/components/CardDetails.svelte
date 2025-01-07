@@ -6,6 +6,8 @@
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy } from 'svelte';
     import { ndkInstance } from '../ndk';
+    import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
+    import AlertModal from './AlertModal.svelte';
 
     export let card: Card;
     export let boardId: string;
@@ -23,9 +25,11 @@
     let editorElement: HTMLElement;
     let isSaving = false;
     let error: string | null = null;
-
     let currentUser: any = null;
     let loginMethod: string | null = null;
+    let currentAssigneeDisplay: string | null = null;
+    let isLoadingAssignee = false;
+    let assigneeError: string | null = null;
 
     onMount(() => {
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
@@ -76,10 +80,41 @@
         attachments = attachments.filter((_, i) => i !== index);
     }
 
-    function addAssignee() {
+    async function validateAssignee(value: string) {
+        if (!value.trim()) {
+            currentAssigneeDisplay = null;
+            isLoadingAssignee = false;
+            assigneeError = null;
+            return;
+        }
+
+        isLoadingAssignee = true;
+        assigneeError = null;
+        try {
+            if (value.includes('@')) {
+                currentAssigneeDisplay = await getUserDisplayNameByNip05(value.trim());
+            } else {
+                currentAssigneeDisplay = await getUserDisplayName(value.trim());
+            }
+        } catch (error) {
+            currentAssigneeDisplay = null;
+            assigneeError = "Invalid identifier";
+        } finally {
+            isLoadingAssignee = false;
+        }
+    }
+
+    async function addAssignee() {
         if (newAssignee.trim() && !assignees.includes(newAssignee.trim())) {
-            assignees = [...assignees, newAssignee.trim()];
-            newAssignee = '';
+            try {
+                const hexPubkey = await resolveIdentifier(newAssignee.trim());
+                assignees = [...assignees, hexPubkey];
+                newAssignee = '';
+                currentAssigneeDisplay = null;
+            } catch (error) {
+                console.error('Error in addAssignee:', error);
+                error = "Invalid identifier or unable to fetch user profile";
+            }
         }
     }
 
@@ -170,23 +205,43 @@
                 <div class="assignees-list">
                     {#each assignees as assignee, i}
                         <div class="assignee-item">
-                            <span>{formatPubkey(assignee)}</span>
+                            {#await getUserDisplayName(assignee)}
+                                <span>Loading...</span>
+                            {:then name}
+                                <span>{name}</span>
+                            {:catch}
+                                <span>Anonymous</span>
+                            {/await}
                             <button type="button" class="remove-btn" on:click={() => removeAssignee(i)}>
                                 &times;
                             </button>
                         </div>
                     {/each}
                 </div>
-                {#if canEditCard}
-                    <div class="add-assignee">
+                <div class="add-assignee">
+                    <div class="assignee-input-wrapper">
                         <input
                             bind:value={newAssignee}
-                            placeholder="Enter nostr pubkey"
+                            placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
+                            on:input={() => validateAssignee(newAssignee)}
                             on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
                         />
-                        <button type="button" on:click={addAssignee}>Add Assignee</button>
-                    </div>                   
-                {/if}                
+                        {#if isLoadingAssignee}
+                            <div class="validation-feedback">Loading...</div>
+                        {:else if currentAssigneeDisplay}
+                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
+                        {:else if assigneeError}
+                            <div class="validation-feedback error">{assigneeError}</div>
+                        {/if}
+                    </div>
+                    <button 
+                        type="button" 
+                        on:click={() => addAssignee()}
+                        disabled={!currentAssigneeDisplay}
+                    >
+                        Add Assignee
+                    </button>
+                </div>
             </div>
 
             <div class="section">
@@ -502,5 +557,60 @@
         .board-header p {
             color: #ccc;
         }        
+    }
+
+    .assignee-input-wrapper {
+        position: relative;
+        flex: 1;
+        margin-bottom: 1rem;
+    }
+
+    .validation-feedback {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        font-size: 0.8rem;
+        margin-top: 4px;
+        white-space: nowrap;
+    }
+
+    .validation-feedback.valid {
+        color: #28a745;
+    }
+
+    .add-assignee {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        align-items: flex-start;
+    }
+
+    .add-assignee button {
+        height: 36px;
+        white-space: nowrap;
+        padding: 0.5rem 1rem;
+        background: #0052cc;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .add-assignee button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+
+    .assignee-input-wrapper input {
+        height: 36px;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .validation-feedback.error {
+        color: #dc3545;
     }
 </style> 
