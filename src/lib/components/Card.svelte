@@ -120,11 +120,6 @@
         }));
     }
 
-    // Function to format pubkey for display
-    function formatPubkey(pubkey: string): string {
-        return pubkey.slice(0, 4) + '...' + pubkey.slice(-4);
-    }
-
     async function handleZap(event: MouseEvent) {
         event.stopPropagation(); // Prevent card details from opening
         showZapModal = true;
@@ -132,6 +127,7 @@
 
     async function executeZap(amount: number, comment: string) {
         try {
+            console.log('Zapping', amount, 'sats to', card.pubkey, 'with comment:', comment);
             await ndkInstance.zapCard(card, amount, comment, zapComplete);
         } catch (error) {
             throw error;

@@ -10,7 +10,7 @@ export async function getUserWithProfileFromPubKey(pubKey: string): Promise<NDKU
 
 export async function getUserDisplayNameByNip05(nip05: string): Promise<string> {
     try {
-        const user = await ndkInstance.ndk!.getUser({ nip05 });
+        const user = await ndkInstance.ndk!.getUserFromNip05(nip05);
         await user.fetchProfile();
         if (!user.pubkey) {
             throw new Error('Invalid NIP-05 identifier');
@@ -31,7 +31,7 @@ export async function getUserDisplayName(pubkey: string): Promise<string> {
             user = ndkInstance.ndk!.getUser({ npub: pubkey });
         } else {
             user = ndkInstance.ndk!.getUser({ pubkey: pubkey });
-        }
+        } 
         
         await user.fetchProfile();
         return user?.profile?.displayName || user?.profile?.name || 'Anonymous';
@@ -45,7 +45,7 @@ export async function resolveIdentifier(identifier: string): Promise<string> {
     try {
         let user;
         if (identifier.includes('@')) {
-            user = await ndkInstance.ndk!.getUser({ nip05: identifier });
+            user = await ndkInstance.ndk!.getUserFromNip05( identifier );
         } else if (identifier.startsWith('npub')) {
             user = ndkInstance.ndk!.getUser({ npub: identifier });
         } else {

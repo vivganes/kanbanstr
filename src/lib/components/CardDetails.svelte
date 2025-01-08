@@ -497,7 +497,6 @@
         background: #f5f5f5;
         border-radius: 4px;
         margin-bottom: 0.5rem;
-        font-family: monospace;
     }
 
     .add-assignee {

@@ -165,7 +165,7 @@ function createKanbanStore() {
                     const dTag = dTagFullForm ? dTagFullForm[1] : undefined;
                     
                     const assignees = event.tags
-                        .filter(t => t[0] === 'p')
+                        .filter(t => t[0] === 'zap')
                         .map(t => t[1]);
 
                     cards.push({
@@ -265,7 +265,7 @@ function createKanbanStore() {
 
             if (card.assignees && card.assignees.length > 0) {
                 card.assignees.forEach(assignee => {
-                    cardEvent.tags.push(['p', assignee]);
+                    cardEvent.tags.push(['zap', assignee, '1']); // Add explicit relay URL
                 });
             }
 
@@ -302,7 +302,8 @@ function createKanbanStore() {
                     status: card.status,
                     order: card.order,
                     attachments: card.attachments,
-                    created_at: cardEvent.created_at!
+                    created_at: cardEvent.created_at!,
+                    assignees: card.assignees
                 });
                 newCards.set(boardId, cards);
                 return {
@@ -396,7 +397,7 @@ function createKanbanStore() {
             if (card.assignees && card.assignees.length > 0) {
                 // Add each assignee as a 'p' tag (NIP-01 standard for referencing pubkeys)
                 card.assignees.forEach(assignee => {
-                    cardEvent.tags.push(['p', assignee]);
+                    cardEvent.tags.push(['zap', assignee, '1']); // Add explicit relay URL
                 });
             }
 
