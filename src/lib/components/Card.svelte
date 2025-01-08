@@ -6,6 +6,7 @@
     import ZapModal from './ZapModal.svelte';
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
+    import { getUserDisplayName, getUserDisplayNameByNip05 } from '../utils/user';
 
     export let card: Card;
     export let boardId: string;
@@ -73,6 +74,10 @@
     // Add this computed property
     $: fullDateTime = card.created_at ? formatDateTime(card.created_at) : '';
 
+    // Add this computed property for assignees display
+    $: hasAssigneesOrAttachments = (card.assignees && card.assignees.length > 0) || 
+                                  (card.attachments && card.attachments.length > 0);
+
     function zapComplete(){
         loadZapAmount();
     }
@@ -115,11 +120,6 @@
         }));
     }
 
-    // Function to format pubkey for display
-    function formatPubkey(pubkey: string): string {
-        return pubkey.slice(0, 4) + '...' + pubkey.slice(-4);
-    }
-
     async function handleZap(event: MouseEvent) {
         event.stopPropagation(); // Prevent card details from opening
         showZapModal = true;
@@ -127,6 +127,7 @@
 
     async function executeZap(amount: number, comment: string) {
         try {
+            console.log('Zapping', amount, 'sats to', card.pubkey, 'with comment:', comment);
             await ndkInstance.zapCard(card, amount, comment, zapComplete);
         } catch (error) {
             throw error;
@@ -183,21 +184,27 @@
     </div>
 
     <div class="card-footer" on:click={openDetails}>
-        {#if !(!card.assignees || card.assignees.length === 0) && (!card.attachments || card.attachments.length === 0)}            
-        <div class="footer-row">
-            {#if card.assignees && card.assignees.length > 0}
-                <div class="assignees">
-                    {#each card.assignees as assignee}
-                        <span class="assignee">{formatPubkey(assignee)}</span>
-                    {/each}
-                </div>
-            {/if}
-            {#if card.attachments && card.attachments.length > 0}
-                <div class="attachments">
-                    <span>📎 {card.attachments.length}</span>
-                </div>
-            {/if}
-        </div>
+        {#if hasAssigneesOrAttachments}            
+            <div class="footer-row">
+                {#if card.assignees && card.assignees.length > 0}
+                    <div class="assignees">
+                        {#each card.assignees as assignee}
+                            {#await getUserDisplayName(assignee)}
+                                <span class="assignee">Loading...</span>
+                            {:then name}
+                                <span class="assignee">{name}</span>
+                            {:catch}
+                                <span class="assignee">Anonymous</span>
+                            {/await}
+                        {/each}
+                    </div>
+                {/if}
+                {#if card.attachments && card.attachments.length > 0}
+                    <div class="attachments">
+                        <span>📎 {card.attachments.length}</span>
+                    </div>
+                {/if}
+            </div>
         {/if}
         <div class="footer-row actions-row">
             {#if !isNoZapBoard}
@@ -292,6 +299,12 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .footer-row:not(:last-child) {
+        margin-bottom: 0.5rem;
     }
 
     .actions-row {
@@ -330,14 +343,25 @@
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
+        max-width: 100%;
     }
 
     .assignee {
         background: #e3e9f3;
         padding: 0.2rem 0.4rem;
         border-radius: 3px;
-        font-family: monospace;
         font-size: 0.75rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 150px;  /* Limit width of each assignee tag */
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .assignee {
+            background: #2d2d2d;
+            color: #e3e9f3;
+        }
     }
 
     .attachments {

@@ -7,6 +7,7 @@
     import { NDKUser } from '@nostr-dev-kit/ndk';
     import CreateBoard from './CreateBoard.svelte';
     import AlertModal from './AlertModal.svelte';
+    import { getUserWithProfileFromPubKey } from '../utils/user';
 
     let showCreateBoard = false;
     let boards: KanbanBoard[] = [];
@@ -171,12 +172,6 @@
         } else if (event.key === 'Escape') {
             editState = null;
         }
-    }
-
-    async function getUserWithProfileFromPubKey(pubKey: string): Promise<NDKUser> {
-        const user = ndkInstance.ndk!.getUser({pubkey: pubKey});
-        await user.fetchProfile();
-        return user;
     }
 
     // Function to load creator names

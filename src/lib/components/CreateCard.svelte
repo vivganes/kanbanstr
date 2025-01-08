@@ -7,6 +7,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { ndkInstance } from '../ndk';
     import AlertModal from './AlertModal.svelte';
+    import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
 
     export let onClose: () => void;
     export let columnName: string;
@@ -22,6 +23,9 @@
     let editor: Editor;
     let editorElement: HTMLElement;
     let errorMessage: string | null = null;
+    let currentAssigneeDisplay: string | null = null;
+    let isLoadingAssignee = false;
+    let assigneeError: string | null = null;
 
     onMount(() => {
         editor = new Editor({
@@ -58,10 +62,42 @@
         attachments = attachments.filter((_, i) => i !== index);
     }
 
-    function addAssignee() {
+
+    async function validateAssignee(value: string) {
+        if (!value.trim()) {
+            currentAssigneeDisplay = null;
+            isLoadingAssignee = false;
+            assigneeError = null;
+            return;
+        }
+
+        isLoadingAssignee = true;
+        assigneeError = null;
+        try {
+            if (value.includes('@')) {
+                currentAssigneeDisplay = await getUserDisplayNameByNip05(value.trim());
+            } else {
+                currentAssigneeDisplay = await getUserDisplayName(value.trim());
+            }
+        } catch (error) {
+            currentAssigneeDisplay = null;
+            assigneeError = "Invalid identifier";
+        } finally {
+            isLoadingAssignee = false;
+        }
+    }
+
+    async function addAssignee() {
         if (newAssignee.trim() && !assignees.includes(newAssignee.trim())) {
-            assignees = [...assignees, newAssignee.trim()];
-            newAssignee = '';
+            try {
+                const hexPubkey = await resolveIdentifier(newAssignee.trim());
+                assignees = [...assignees, hexPubkey];
+                newAssignee = '';
+                currentAssigneeDisplay = null;
+            } catch (error) {
+                console.error('Error in addAssignee:', error);
+                errorMessage = "Invalid identifier or unable to fetch user profile";
+            }
         }
     }
 
@@ -85,11 +121,6 @@
         } catch (error) {
             errorMessage = error instanceof Error ? error.message : 'Failed to create card';
         }
-    }
-
-    // Function to format pubkey for display
-    function formatPubkey(pubkey: string): string {
-        return pubkey.slice(0, 8) + '...' + pubkey.slice(-8);
     }
 </script>
 
@@ -126,7 +157,13 @@
                 <div class="assignees-list">
                     {#each assignees as assignee, i}
                         <div class="assignee-item">
-                            <span>{formatPubkey(assignee)}</span>
+                            {#await getUserDisplayName(assignee)}
+                                <span>Loading...</span>
+                            {:then name}
+                                <span>{name}</span>
+                            {:catch}
+                                <span>Anonymous</span>
+                            {/await}
                             <button type="button" class="remove-btn" on:click={() => removeAssignee(i)}>
                                 &times;
                             </button>
@@ -134,12 +171,28 @@
                     {/each}
                 </div>
                 <div class="add-assignee">
-                    <input
-                        bind:value={newAssignee}
-                        placeholder="Enter nostr pubkey"
-                        on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
-                    />
-                    <button type="button" on:click={addAssignee}>Add Assignee</button>
+                    <div class="assignee-input-wrapper">
+                        <input
+                            bind:value={newAssignee}
+                            placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
+                            on:input={() => validateAssignee(newAssignee)}
+                            on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
+                        />
+                        {#if isLoadingAssignee}
+                            <div class="validation-feedback">Loading...</div>
+                        {:else if currentAssigneeDisplay}
+                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
+                        {:else if assigneeError}
+                            <div class="validation-feedback error">{assigneeError}</div>
+                        {/if}
+                    </div>
+                    <button 
+                        type="button" 
+                        on:click={() => addAssignee()}
+                        disabled={!currentAssigneeDisplay}
+                    >
+                        Add Assignee
+                    </button>
                 </div>
             </div>
 
@@ -360,12 +413,19 @@
         background: #f5f5f5;
         border-radius: 4px;
         margin-bottom: 0.5rem;
-        font-family: monospace;
+    }
+
+     .assignee-input-wrapper {
+        position: relative;
+        flex: 1;
+        margin-bottom: 1rem;
     }
 
     .add-assignee {
         display: flex;
         gap: 0.5rem;
+        margin-bottom: 1rem;
+        align-items: flex-start;
     }
 
     .add-assignee input {
@@ -373,6 +433,7 @@
     }
 
     .add-assignee button {
+        height: 36px;
         white-space: nowrap;
         padding: 0.5rem 1rem;
         background: #0052cc;
@@ -380,5 +441,36 @@
         border: none;
         border-radius: 4px;
         cursor: pointer;
+    }
+
+    .add-assignee button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+
+    .assignee-input-wrapper input {
+        height: 36px;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .validation-feedback {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        font-size: 0.8rem;
+        margin-top: 4px;
+        white-space: nowrap;
+    }
+
+    .validation-feedback.valid {
+        color: #28a745;
+    }
+
+    .validation-feedback.error {
+        color: #dc3545;
     }
 </style> 
