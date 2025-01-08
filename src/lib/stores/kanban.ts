@@ -174,6 +174,11 @@ function createKanbanStore() {
                     const titleTag = event.tags.find(t => t[0] === 'title');
                     const dTagFullForm = event.tags.find(t => t[0] === 'd');
                     const dTag = dTagFullForm ? dTagFullForm[1] : undefined;
+                    
+                    const assignees = event.tags
+                        .filter(t => t[0] === 'zap')
+                        .map(t => t[1]);
+
                     cards.push({
                         pubkey: event.pubkey,
                         id: event.id,
@@ -183,6 +188,7 @@ function createKanbanStore() {
                         status: content.status,
                         order: content.order,
                         attachments: content.attachments || [],
+                        assignees: assignees, 
                         created_at: event.created_at!
                     });
                 } catch (error) {
@@ -268,9 +274,13 @@ function createKanbanStore() {
                 ['title', card.title]
             ];
 
-            await cardEvent.publish();
+            if (card.assignees && card.assignees.length > 0) {
+                card.assignees.forEach(assignee => {
+                    cardEvent.tags.push(['zap', assignee, '1']); // Add explicit relay URL
+                });
+            }
 
-            
+            await cardEvent.publish();
 
             // Create a new board event with the updated card list
             const newBoardEvent = new NDKEvent(ndk);
@@ -303,7 +313,8 @@ function createKanbanStore() {
                     status: card.status,
                     order: card.order,
                     attachments: card.attachments,
-                    created_at: cardEvent.created_at!
+                    created_at: cardEvent.created_at!,
+                    assignees: card.assignees
                 });
                 newCards.set(boardId, cards);
                 return {
@@ -392,6 +403,14 @@ function createKanbanStore() {
                 ['d', cardEvent.tags.find(t => t[0] === 'd')![1]],
                 ['title', card.title]
             ];
+
+            // Add assignee tags if there are any
+            if (card.assignees && card.assignees.length > 0) {
+                // Add each assignee as a 'p' tag (NIP-01 standard for referencing pubkeys)
+                card.assignees.forEach(assignee => {
+                    cardEvent.tags.push(['zap', assignee, '1']); // Add explicit relay URL
+                });
+            }
 
             await cardEvent.publishReplaceable();
 
