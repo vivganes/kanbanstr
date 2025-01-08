@@ -112,6 +112,17 @@ function createKanbanStore() {
         }
     }
 
+    async function clearStore(){
+        await update(state => ({
+            boards: [],
+            myBoards: [],
+            cards: new Map(),
+            loading: false,
+            currentUser: null,
+            error: null,
+        }));
+    }
+
     async function loadCardsForBoard(boardId: string) {
         try {
             // First get the board to get the card references
@@ -564,6 +575,7 @@ function createKanbanStore() {
     return {
         subscribe,
         init,
+        clearStore,
         loadBoards,
         loadMyBoards,
         loadCardsForBoard,

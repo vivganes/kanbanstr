@@ -108,6 +108,7 @@
     }
 
     function handleLogout() {
+        kanbanStore.clearStore();
         ndkInstance.logout();
     }
 

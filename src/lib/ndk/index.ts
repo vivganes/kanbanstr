@@ -12,7 +12,7 @@ import NDK, {
 } from '@nostr-dev-kit/ndk';
 import { writable, type Writable } from 'svelte/store';
 import { type Card } from '../stores/kanban';
-import { NDKNWCWallet, NDKWebLNWallet, type NDKWallet } from '@nostr-dev-kit/ndk-wallet';
+import { NDKNWCWallet, NDKWebLNWallet} from '@nostr-dev-kit/ndk-wallet';
 
 
 export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
@@ -47,11 +47,12 @@ const DEFAULT_RELAYS = [
 ];
 
 class NDKInstance {
-    private static instance: NDKInstance;
+    private static instance?: NDKInstance;
     private _ndk: NDK | null = null;
     private nwcString: string | null = null;
     private zapMethod: 'webln' | 'nwc' | undefined;
     private user: NDKUser | null = null;
+    private walletNdk: NDK| null = null;
     
     // Store to track login state
     private state: Writable<NDKState> = writable({
@@ -66,6 +67,10 @@ class NDKInstance {
 
     private constructor() {
         this.tryAutoLogin();
+    }
+
+    public static resetNdkInstance(){
+        NDKInstance.instance = undefined;
     }
 
     private async tryAutoLogin() {
@@ -145,18 +150,18 @@ class NDKInstance {
         }
     }
 
-    private clearStoredLoginData() {
+    private async clearStoredLoginData() {
         try {
-            localStorage.removeItem(STORAGE_KEY);
+           await localStorage.removeItem(STORAGE_KEY);
         } catch (error) {
             console.error('Failed to clear login data:', error);
         }
     }
 
-    private clearStoredZapWalletData() {
+    private async clearStoredZapWalletData() {
         try {
-            localStorage.removeItem("kanbanstr_zap_method");
-            localStorage.removeItem("kanbanstr_nwc");
+            await localStorage.removeItem("kanbanstr_zap_method");
+            await localStorage.removeItem("kanbanstr_nwc");
         } catch (error) {
             console.error('Failed to clear zap wallet data:', error);
         }
@@ -193,10 +198,11 @@ class NDKInstance {
 
     async initializeWalletForZapping(){ 
         if(this._ndk){
-            if(this.zapMethod === 'nwc'){                
-                const wallet = new NDKNWCWallet(new NDK({
+            if(this.zapMethod === 'nwc'){  
+                this.walletNdk =  new NDK({
                     explicitRelayUrls: [this.getRelayFromNwcString(this.nwcString!)!]
-                }));
+                })             
+                const wallet = new NDKNWCWallet(this.walletNdk);
                 await wallet.initWithPairingCode(this.nwcString!);
                 this._ndk.wallet = wallet;
             } else if (this.zapMethod === 'webln'){
@@ -408,20 +414,35 @@ class NDKInstance {
     }
 
     async logout(): Promise<void> {
-        this._ndk = null;
         this.state.set({
             user: null,
             loginMethod: null,
             isReady: false,
-            isLoggingInNow: false,
+            isLoggingInNow: true,
             nwcString: null,
             zapMethod: undefined,
             zappingNow: false
         });
+        if(this.walletNdk){
+            this.walletNdk = null;
+        }
+        if(this._ndk){
+            this._ndk = null;
+        }
+        this.user = null;
+        
         
         // Clear stored login data
-        this.clearStoredLoginData();
-        this.clearStoredZapWalletData();
+        await this.clearStoredLoginData();
+        await this.clearStoredZapWalletData();
+        this.state.update(state => ({
+            ...state,
+            isLoggingInNow: false
+        }));
+        
+        console.log("Logged out");
+
+        
     }
 
     canWrite(): boolean {
