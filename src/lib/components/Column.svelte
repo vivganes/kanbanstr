@@ -7,6 +7,7 @@
 
     export let column: Column;
     export let cards: Card[];
+    export let readOnly: boolean = false;
     export let boardId: string;
     export let boardPubkey: string;
     export let onCardDrop: (cardId: string, targetStatus: string, targetIndex?: number) => Promise<void>;
@@ -31,10 +32,10 @@
         return unsubscribe;
     });
 
-    $: canEditBoard = currentUser && 
+    $: canEditBoard = !readOnly &&  
                  loginMethod !== 'readonly' && 
                  loginMethod !== 'npub' && 
-                 currentUser.pubkey === boardPubkey;
+                 (currentUser && currentUser.pubkey === boardPubkey);
 
     function openCreateModal() {
         showCreateModal = true;
@@ -139,7 +140,8 @@
                     {boardPubkey}
                     {isUnmapped}
                     showDetails={cardToOpen?.id === card.id} 
-                    {isNoZapBoard}
+                    {isNoZapBoard}     
+                    {readOnly}               
                 />
             </div>
         {/each}

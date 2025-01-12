@@ -27,7 +27,7 @@ export interface Card {
     status: string;
     order: number;
     attachments?: string[];
-    assignees?: string[]; // Array of nostr pubkeys (from zap tags)
+    assignees?: string[]; // Array of nostr pubkeys (from p tags)
     created_at: number;
 }
 
@@ -147,7 +147,7 @@ function createKanbanStore() {
                         }));
                         
                     // Check if this is a no-zap board (no maintainer zap tags)
-                    let hasZapTags = event.tags.some(t => t[0] === 'zap');
+                    let hasNoZapTag = event.tags.some(t => t[0] === 'nozap');
 
                     if(hasATags || contentHasColumns){
                         //legacy board
@@ -162,7 +162,7 @@ function createKanbanStore() {
                         title: titleTag ? titleTag[1] : 'Untitled Board',
                         description: descTag ? descTag[1] : '',
                         columns,
-                        isNoZapBoard: !hasZapTags,
+                        isNoZapBoard: hasNoZapTag,
                         needsMigration: hasATags || contentHasColumns
                     });
                 } catch (error) {
@@ -396,7 +396,7 @@ function createKanbanStore() {
         }
     }
 
-    async function createCard(boardId: string, card: Omit<Card, 'id'>) {
+    async function createCard(boardId: string, card: Card) {
         try {
             // First get the board to get the card references
             const boardFilter: NDKFilter = {
@@ -515,7 +515,8 @@ function createKanbanStore() {
             // Get the original card event
             const cardFilter: NDKFilter = {
                 kinds: [30302 as NDKKind],
-                ids: [card.id]
+                authors: [card.pubkey],
+                '#d': [card.dTag]
             };
 
             const events = await ndk.fetchEvents(cardFilter);

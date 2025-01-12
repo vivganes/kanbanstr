@@ -292,6 +292,7 @@
                     cardToOpen={cardToOpen}
                     onDeleteColumn={() => handleDeleteColumn(column.name)}
                     isNoZapBoard={board.isNoZapBoard}
+                    readOnly={!canEdit}
                 />
             {/each}
             {#if showUnmappedColumn}
@@ -304,6 +305,7 @@
                     isUnmapped={true}
                     cardToOpen={cardToOpen}
                     isNoZapBoard={board.isNoZapBoard}
+                    readOnly={!canEdit}
                 />
             {/if}
         {/if}

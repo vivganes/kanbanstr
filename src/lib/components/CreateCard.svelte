@@ -115,7 +115,7 @@
                 status: columnName,
                 order: cardsCount * 10,
                 attachments,
-                assignees
+                assignees,                
             });
             onClose();
         } catch (error) {

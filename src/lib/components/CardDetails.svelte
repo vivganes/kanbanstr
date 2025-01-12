@@ -7,12 +7,13 @@
     import { onMount, onDestroy } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
-    import AlertModal from './AlertModal.svelte';
 
     export let card: Card;
     export let boardId: string;
     export let onClose: () => void;
     export let isUnmapped: boolean = false;
+    export let readOnly: boolean = false;
+
 
     let title = card.title;
     let status = card.status;
@@ -39,6 +40,7 @@
 
         editor = new Editor({
             element: editorElement,
+            editable: canEditCard,
             extensions: [
                 StarterKit,
                 Markdown.configure({
@@ -64,10 +66,12 @@
         }
     });
 
-    $: canEditCard = currentUser && 
+    $: canEditCard = (!readOnly) && (currentUser && 
                  loginMethod !== 'readonly' && 
                  loginMethod !== 'npub' && 
-                 currentUser.pubkey === card.pubkey;
+                 currentUser.pubkey === card.pubkey);
+
+    $: canEditCard, changeMarkdownEditability();
 
     function addAttachment() {
         if (newAttachment.trim()) {
@@ -151,6 +155,13 @@
     function formatPubkey(pubkey: string): string {
         return pubkey.slice(0, 8) + '...' + pubkey.slice(-8);
     }
+
+
+    function changeMarkdownEditability() {
+        if(editor){
+            editor.setEditable(canEditCard);
+        }
+    }
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -217,11 +228,16 @@
                             </button>
                         </div>
                     {/each}
+                    {#if assignees.length === 0}
+                        <div>No assignees</div>
+                    {/if}
                 </div>
+                {#if canEditCard}
                 <div class="add-assignee">
                     <div class="assignee-input-wrapper">
                         <input
                             bind:value={newAssignee}
+                            disabled = {!canEditCard}
                             placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
                             on:input={() => validateAssignee(newAssignee)}
                             on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
@@ -237,11 +253,12 @@
                     <button 
                         type="button" 
                         on:click={() => addAssignee()}
-                        disabled={!currentAssigneeDisplay}
+                        disabled={!canEditCard || !currentAssigneeDisplay}
                     >
                         Add Assignee
                     </button>
                 </div>
+                {/if}
             </div>
 
             <div class="section">
@@ -255,16 +272,24 @@
                             </button>
                         </div>
                     {/each}
+                    {#if attachments.length === 0}
+                        <div>No attachments</div>
+                    {/if}
                 </div>
                 {#if canEditCard}
                 <div class="add-attachment">
                     <input
                         bind:value={newAttachment}
                         placeholder="Enter link URL"
+                        disabled={!canEditCard}
                         type="url"
                         on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAttachment())}
                     />
-                    <button type="button" on:click={addAttachment}>Add Link</button>
+                    <button type="button" 
+                    disabled={!canEditCard || !newAttachment.trim()}
+                    on:click={addAttachment}>
+                        Add Link
+                    </button>
                 </div>
                 {/if}
             </div>

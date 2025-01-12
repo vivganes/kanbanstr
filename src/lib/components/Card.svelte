@@ -14,6 +14,7 @@
     export let isUnmapped: boolean = false;    
     export let showDetails: boolean = false;
     export let isNoZapBoard: boolean = false;
+    export let readOnly: boolean = false;
 
     let copySuccess = false;
     let copyTimeout: NodeJS.Timeout;
@@ -240,7 +241,7 @@
 </div>
 
 {#if showDetails}
-    <CardDetails {card} {boardId} {isUnmapped} onClose={closeDetails} />
+    <CardDetails {card} {boardId} {isUnmapped} onClose={closeDetails} {readOnly}/>
 {/if}
 
 {#if zapError}
