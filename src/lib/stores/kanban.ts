@@ -13,6 +13,12 @@ export interface KanbanBoard {
     needsMigration?: boolean;
 }
 
+export enum BoardListType {
+    MyBoards = 'My Boards',
+    MaintainingBoards = 'Boards I maintain',
+    All = 'All Boards',
+}
+
 export interface Column {
     id: string;
     name: string;
@@ -35,6 +41,7 @@ export interface Card {
 interface KanbanState {
     boards: KanbanBoard[];
     myBoards: KanbanBoard[];
+    maintainingBoards: KanbanBoard[];
     cards: Map<string, Card[]>;
     loading: boolean;
     currentUser: NDKUser | null;
@@ -45,6 +52,7 @@ function createKanbanStore() {
     const { subscribe, set, update } = writable<KanbanState>({
         boards: [],
         myBoards: [],
+        maintainingBoards: [],
         cards: new Map(),
         loading: false,
         currentUser: null,
@@ -113,16 +121,24 @@ function createKanbanStore() {
         }
     }
 
-    async function loadBoards(myBoardsOnly: boolean = false) {
+    async function loadBoards(boardListType: BoardListType = BoardListType.All) {
         update(state => ({ ...state, loading: true, error: null }));
         
         try {
-            const filter: NDKFilter = {
+            let filter: NDKFilter = {
                 kinds: [30301 as NDKKind],                
                 limit: 500,
             };
-            if(myBoardsOnly){
-                filter.authors = [ndk.activeUser?.pubkey!];
+            if(boardListType === BoardListType.MyBoards){
+                filter = {
+                    ...filter,
+                    authors: [ndk.activeUser?.pubkey!],
+                }
+            } else if (boardListType === BoardListType.MaintainingBoards){
+                filter = {
+                    ...filter,
+                    '#p': [ndk.activeUser?.pubkey!],
+                }
             }
 
             const events = await ndk.fetchEvents(filter);
@@ -178,10 +194,16 @@ function createKanbanStore() {
             }
 
             console.log('Loaded boards:', boards);
-            if(myBoardsOnly){
+            if(boardListType === BoardListType.MyBoards){
                 update(state => ({
                     ...state,
                     myBoards: boards,
+                    loading: false
+                }));
+            } else if(boardListType === BoardListType.MaintainingBoards){
+                update(state => ({
+                    ...state,
+                    maintainingBoards: boards,
                     loading: false
                 }));
             } else{
@@ -206,6 +228,7 @@ function createKanbanStore() {
         await update(state => ({
             boards: [],
             myBoards: [],
+            maintainingBoards: [],
             cards: new Map(),
             loading: false,
             currentUser: null,
@@ -757,7 +780,11 @@ function createKanbanStore() {
     }
 
     async function loadMyBoards() {
-        await loadBoards(true);
+        await loadBoards(BoardListType.MyBoards);
+    }
+
+    async function loadMaintainingBoards() {
+        await loadBoards(BoardListType.MaintainingBoards);
     }
 
     function canEditCards(board: KanbanBoard, userPubkey: string): boolean {
@@ -776,6 +803,7 @@ function createKanbanStore() {
         clearStore,
         loadBoards,
         loadMyBoards,
+        loadMaintainingBoards,
         loadCardsForBoard,
         loadCardsForLegacyBoard,
         createBoard,

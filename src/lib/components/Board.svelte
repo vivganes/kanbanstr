@@ -339,6 +339,8 @@
         </div>
         {#if !isEditingDetails && board.maintainers?.length > 0}
             <div class="maintainers-display">
+                <span class="label">Creator:</span>
+                <UserAvatar pubkey={board.pubkey} size={28} />
                 <span class="label">Maintainers:</span>
                 <div class="maintainers-avatars">
                     {#each board.maintainers as maintainer}

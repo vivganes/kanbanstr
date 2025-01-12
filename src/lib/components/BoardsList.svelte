@@ -2,16 +2,18 @@
     import { onMount } from 'svelte';
     import { push } from 'svelte-spa-router';
     import { ndkInstance, type LoginMethod } from '../ndk';
-    import { kanbanStore } from '../stores/kanban';
+    import { BoardListType, kanbanStore } from '../stores/kanban';
     import type { KanbanBoard } from '../stores/kanban';
     import { NDKUser } from '@nostr-dev-kit/ndk';
     import CreateBoard from './CreateBoard.svelte';
     import AlertModal from './AlertModal.svelte';
     import { getUserWithProfileFromPubKey } from '../utils/user';
+    import UserAvatar from './UserAvatar.svelte';
 
     let showCreateBoard = false;
     let boards: KanbanBoard[] = [];
     let myBoards: KanbanBoard[] = [];
+    let maintainingBoards: KanbanBoard[] = [];
     let loading = false;
     let currentUser: NDKUser | null = null;
     let currentLoginMethod: LoginMethod | null = null;
@@ -28,10 +30,10 @@
     let editState: EditState | null = null;
 
     // Add tab state
-    let activeTab: 'my-boards' | 'all-boards' = 'my-boards';
+    let activeTab: 'my-boards' | 'maintaining-boards' |'all-boards' = 'my-boards';
     
     // Computed property for filtered boards
-    $: filteredBoards = activeTab === 'my-boards' ? myBoards : boards;
+    $: filteredBoards = activeTab === 'my-boards' ? myBoards : activeTab === 'maintaining-boards' ? maintainingBoards : boards;
 
     // Add a Map to store user display names
     let creatorNames = new Map<string, string>();
@@ -39,15 +41,18 @@
     // Add this to track Map updates
     let creatorNamesVersion = 0;
 
-    async function switchTab(tab: 'my-boards' | 'all-boards') {
+    async function switchTab(tab: 'my-boards' | 'maintaining-boards' |'all-boards') {
         try {
             activeTab = tab;
             loading = true;
             errorMessage = null;
             
             if (tab === 'my-boards') {
-                await kanbanStore.loadBoards(true);
-            } else {
+                await kanbanStore.loadBoards(BoardListType.MyBoards);
+            } else if (tab === 'maintaining-boards') {
+                await kanbanStore.loadBoards(BoardListType.MaintainingBoards);
+            } 
+            else {
                 await kanbanStore.loadBoards();
             }
         } catch (error) {
@@ -66,7 +71,7 @@
                         kanbanStore.init(ndkInstance.ndk!);
                     }
                     // Load my boards by default
-                    kanbanStore.loadBoards(true);
+                    kanbanStore.loadBoards(BoardListType.MyBoards);
                 }
             });
 
@@ -74,6 +79,7 @@
             const unsubKanban = kanbanStore.subscribe(state => {
                 boards = state.boards;
                 myBoards = state.myBoards;
+                maintainingBoards = state.maintainingBoards;
                 loading = state.loading;
                 errorMessage = state.error;
             });
@@ -206,6 +212,13 @@
         </button>
         <button 
             class="tab-button" 
+            class:active={activeTab === 'maintaining-boards'}
+            on:click={() => switchTab('maintaining-boards')}
+        >
+            Boards I Maintain
+        </button>
+        <button 
+            class="tab-button" 
             class:active={activeTab === 'all-boards'}
             on:click={() => switchTab('all-boards')}
         >
@@ -219,6 +232,8 @@
         <div class="empty">
             {#if activeTab === 'my-boards'}
                 <p>You haven't created any boards yet. {currentLoginMethod !== 'npub' && currentLoginMethod !== 'readonly' ? 'Create your first board!' : ''}</p>
+            {:else if activeTab === 'maintaining-boards'}
+                <p>You are not maintaining any boards.</p>
             {:else}
                 <p>No boards found.</p>
             {/if}
@@ -274,7 +289,7 @@
                                 autofocus
                             />
                         {:else}
-                            <p><b>Description: </b>{' ' + (board.description || 'None')}</p>
+                            <p>{' ' + (board.description || 'No description')}</p>
                             <button 
                                 class="desc-edit-button" 
                                 on:click={(e) => startEdit(board, 'description', e)}
@@ -285,13 +300,14 @@
                         {/if}
                     </div>
                     <div class="creator-info">
-                        {#await loadCreatorName(board.pubkey)}
-                            <span>Loading creator...</span>
-                        {:then name}
-                            Created by {name}
-                        {:catch}
-                            Created by Anonymous
-                        {/await}
+                        Creator: <UserAvatar pubkey={board.pubkey} size={24} prefix="Creator: "/>
+                        ● Maintainers:
+                         {#each board.maintainers as maintainer}
+                        <UserAvatar pubkey={maintainer} size={24} prefix="Maintainer: "/>
+                        {/each}
+                        {#if board.maintainers.length === 0}
+                            <span>None</span>
+                        {/if}
                     </div>
                 </div>
             {/each}
@@ -525,6 +541,9 @@
     }
 
     .creator-info {
+        display: flex;
+        justify-content: flex-start;
+        gap: 0.25rem;
         font-size: 0.9rem;
         color: #666;
         padding-top: 0.5rem;
@@ -547,5 +566,49 @@
 
     .settings-link:hover {
         background: rgba(0, 82, 204, 0.1);
+    }
+
+    .board-meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin: 0.5rem 0;
+        flex-wrap: wrap;
+    }
+
+    .owner-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .maintainers-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .maintainers-info .label {
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .maintainers-avatars {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .owner-info {
+            color: #999;
+        }
+
+        .maintainers-info .label {
+            color: #999;
+        }
     }
 </style> 

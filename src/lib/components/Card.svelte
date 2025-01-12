@@ -172,7 +172,7 @@
     <div class="card-meta">
        {#if lastUpdated}
             <div class="last-updated" title={'Last updated at ' + fullDateTime}>
-                <UserAvatar pubkey={card.pubkey} size={20} /> <span class="last-updated-time">{lastUpdated}</span>
+                <UserAvatar pubkey={card.pubkey} size={20} prefix="Last updated by: "/> <span class="last-updated-time">{lastUpdated}</span>
             </div>
         {/if}
     </div>
