@@ -105,6 +105,11 @@ class KanbanMigrationUtil {
                 );
             }
 
+            // wait for 5 seconds before returning the result
+            await new Promise(r => setTimeout(r, 5000));
+
+            // reload the page
+            location.reload();
 
             return result;
 

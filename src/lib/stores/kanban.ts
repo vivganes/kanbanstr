@@ -171,7 +171,8 @@ function createKanbanStore() {
                         //legacy board
                         const eventContent = JSON.parse(event.content);
                         columns = eventContent.columns;       
-                        descTag = ['description',eventContent.description];            
+                        descTag = ['description',eventContent.description];
+                        console.log("Legacy board found");            
                     }
 
                     // Get maintainers from p tags

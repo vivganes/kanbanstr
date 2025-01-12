@@ -247,24 +247,7 @@
                 >
                     <div class="board-header">
                         <div class="title-section">
-                            {#if editState?.boardId === board.id && editState.field === 'title'}
-                                <input
-                                    type="text"
-                                    value={editState.value}
-                                    on:blur={(e) => handleEdit(board, e)}
-                                    on:keydown={(e) => handleKeyDown(board, e)}
-                                    autofocus
-                                />
-                            {:else}
                                 <h3>{board.title}</h3>
-                                <button 
-                                    class="edit-button" 
-                                    on:click={(e) => startEdit(board, 'title', e)}
-                                    title="Edit title"
-                                >
-                                    ✎
-                                </button>
-                            {/if}
                         </div>
                         <button 
                             class="permalink-button" 
@@ -279,25 +262,8 @@
                         </button>
                     </div>
                     
-                    <div class="description-section">
-                        {#if editState?.boardId === board.id && editState.field === 'description'}
-                            <textarea
-                                value={editState.value}
-                                on:blur={(e) => handleEdit(board, e)}
-                                on:keydown={(e) => handleKeyDown(board, e)}
-                                rows="3"
-                                autofocus
-                            />
-                        {:else}
+                    <div class="description-section">                        
                             <p>{' ' + (board.description || 'No description')}</p>
-                            <button 
-                                class="desc-edit-button" 
-                                on:click={(e) => startEdit(board, 'description', e)}
-                                title="Edit description"
-                            >
-                                ✎
-                            </button>
-                        {/if}
                     </div>
                     <div class="creator-info">
                         Creator: <UserAvatar pubkey={board.pubkey} size={24} prefix="Creator: "/>
