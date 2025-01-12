@@ -70,6 +70,9 @@ class NDKInstance {
     }
 
     public static resetNdkInstance(){
+        if(NDKInstance?.instance?._ndk){
+            NDKInstance.instance._ndk = null;
+        }
         NDKInstance.instance = undefined;
     }
 
@@ -430,17 +433,16 @@ class NDKInstance {
             this._ndk = null;
         }
         this.user = null;
+        NDKInstance.resetNdkInstance();
         
         
         // Clear stored login data
         await this.clearStoredLoginData();
         await this.clearStoredZapWalletData();
-        this.state.update(state => ({
-            ...state,
-            isLoggingInNow: false
-        }));
+
         
         console.log("Logged out");
+        location.reload();
 
         
     }
