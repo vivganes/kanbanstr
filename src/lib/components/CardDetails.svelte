@@ -295,7 +295,7 @@
                 type="button" 
                 class="save" 
                 on:click={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || !canEditCard}
             >
                 {isSaving ? 'Saving...' : 'Save Changes'}
             </button>

@@ -105,7 +105,6 @@
     }
 
     async function handleSubmit() {
-        console.log("submitted");
         if (!title.trim()) return;
 
         try {

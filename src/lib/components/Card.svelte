@@ -1,12 +1,11 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { ndkInstance, formatAmount } from '../ndk';
-    import type { Card } from '../stores/kanban';
+    import { kanbanStore, type Card } from '../stores/kanban';
     import CardDetails from './CardDetails.svelte';
     import ZapModal from './ZapModal.svelte';
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
-    import { getUserDisplayName } from '../utils/user';
     import UserAvatar from './UserAvatar.svelte';
 
     export let card: Card;
@@ -30,17 +29,8 @@
     let zapMethod = undefined;
     let canUserZap = false;
     let zapImpossibleReason: string|undefined = undefined;
-    let creatorName = 'Unknown';
 
-    onMount(async () => {       
-        try {
-            const creator = await getUserWithProfileFromPubKey(card.pubkey);
-            creatorName = creator?.profile?.displayName || 'Anonymous';
-        } catch (error) {
-            console.error('Failed to load creator info:', error);
-            creatorName = 'Anonymous';
-        }
-
+    onMount(() => {
         const unsubscribe = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -60,8 +50,20 @@
             }
         });
 
-        return {
-            unsubscribe
+        // subscribe to kanban store and update the card
+        const kanbanUnsub = kanbanStore.subscribe((state) => {
+            const cardsInBoard = state.cards.get(boardId);
+            const cardsWithSameDTag = cardsInBoard?.filter(c => c.dTag === card.dTag);
+            if (cardsWithSameDTag) {
+                let latestCard = cardsWithSameDTag.sort((a, b) => b.created_at - a.created_at)[0];
+                card = latestCard
+                console.log('Card updated:', card);
+            }
+        });
+
+        return  () => {
+                unsubscribe();
+                kanbanUnsub();
         };
     });
 
@@ -82,12 +84,6 @@
 
     function zapComplete(){
         loadZapAmount();
-    }
-
-    async function getUserWithProfileFromPubKey(pubKey: string): Promise<NDKUser> {
-        const user = ndkInstance.ndk!.getUser({pubkey: pubKey});
-        await user.fetchProfile();
-        return user;
     }
 
     function copyPermalink() {

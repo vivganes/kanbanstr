@@ -38,7 +38,8 @@
                      currentUser && 
                      currentUser.pubkey === board.pubkey;
     
-    $: canMaintainBoard = loginMethod !== 'readonly' && 
+    $: canMaintainBoard = !board.needsMigration && 
+                         loginMethod !== 'readonly' && 
                          loginMethod !== 'npub' && 
                          currentUser && 
                          (currentUser.pubkey === board.pubkey || board.maintainers?.includes(currentUser.pubkey));
@@ -114,14 +115,7 @@
     on:dragover|preventDefault={handleColumnDragOver}
 >
     <header class="column-header">
-        <h3>{column.name}</h3>
-        <!-- <div>
-            <p>{canEditBoard}</p>
-            <p>{currentUser?.pubkey}</p>
-            <p>{board.maintainers}</p>
-            <p>{canMaintainBoard}</p>
-        </div> -->
-        
+        <h3>{column.name}</h3>        
         <div class="column-actions">
             {#if canEditBoard && !isUnmapped && showDeleteButton}
                 <button 

@@ -301,7 +301,7 @@
                     </div>
                     <div class="creator-info">
                         Creator: <UserAvatar pubkey={board.pubkey} size={24} prefix="Creator: "/>
-                        ● Maintainers:
+                        ♦ Maintainers:
                          {#each board.maintainers as maintainer}
                         <UserAvatar pubkey={maintainer} size={24} prefix="Maintainer: "/>
                         {/each}

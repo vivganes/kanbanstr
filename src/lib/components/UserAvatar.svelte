@@ -21,6 +21,14 @@
 
     $: displayName = user?.profile?.name || 'Anonymous';
     $: avatarUrl = user?.profile?.image || `https://robohash.org/${pubkey}`;
+    $: {        
+        Promise.resolve(getUserWithProfileFromPubKey(pubkey)).then((u) => {
+                user = u;
+            }).catch((e) => {
+                error = true;
+                console.error('Failed to load user:', e);
+            });        
+    }
 </script>
 
 <div 

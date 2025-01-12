@@ -36,6 +36,7 @@ export interface Card {
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
     created_at: number;
+    aTags?: string[]; // Array of a tags pointing to boards
 }
 
 interface KanbanState {
@@ -366,6 +367,11 @@ function createKanbanStore() {
                         .filter(t => t[0] === 'zap')
                         .map(t => t[1]);
 
+                    // Get all a tags
+                    const aTags = event.tags
+                        .filter(t => t[0] === 'a')
+                        .map(t => t[1]);
+
                     // Handle tracker cards
                     const isTrackerCard = event.tags.some(t => t[0] === 'k');
                     if (isTrackerCard) {
@@ -383,7 +389,8 @@ function createKanbanStore() {
                         order: rankTag ? parseInt(rankTag[1]) : 0,
                         attachments,
                         assignees,
-                        created_at: event.created_at!
+                        created_at: event.created_at!,
+                        aTags
                     });
                 } catch (error) {
                     console.error('Failed to parse card event:', error);
@@ -480,7 +487,8 @@ function createKanbanStore() {
                     order: card.order,
                     attachments: card.attachments,
                     created_at: cardEvent.created_at!,
-                    assignees: card.assignees
+                    assignees: card.assignees,
+                    aTags: [aTagPointingToBoard]
                 });
                 newCards.set(boardId, cards);
                 return {
@@ -494,17 +502,6 @@ function createKanbanStore() {
         }
     }
 
-    async function findNDKCardEventByDtag(dTag: string){
-        const cardFilter: NDKFilter = {
-            kinds: [30302 as NDKKind],
-            '#d': [dTag]
-        };
-
-        const events = await ndk.fetchEvents(cardFilter);
-        if(events.size > 0){
-            return Array.from(events)[0];
-        }
-    }
 
     function calculateNewOrder(cards: Card[], cardId: string, targetStatus: string, targetIndex: number): number {
         // Filter cards in the same column
@@ -534,19 +531,7 @@ function createKanbanStore() {
 
     async function updateCard(boardId: string, card: Card, targetIndex?: number) {
         try {
-            // Get the original card event
-            const cardFilter: NDKFilter = {
-                kinds: [30302 as NDKKind],
-                authors: [card.pubkey],
-                '#d': [card.dTag]
-            };
-
-            const events = await ndk.fetchEvents(cardFilter);
-            const originalEvent = Array.from(events)[0];
-            if (!originalEvent) {
-                throw new Error('Card not found');
-            }
-
+           
             // Create new card event
             const newCardEvent = new NDKEvent(ndk);
             newCardEvent.kind = 30302 as NDKKind;
@@ -566,8 +551,7 @@ function createKanbanStore() {
                 ['alt', `A card titled ${card.title}`],
                 ['s', card.status],
                 ['rank', newOrder.toString()],
-                // Keep the same board reference
-                ...originalEvent.tags.filter(t => t[0] === 'a')
+                
             ];
 
             // Add attachment tags
@@ -584,17 +568,26 @@ function createKanbanStore() {
                 });
             }
 
+            // Add a tags
+            if (card.aTags && card.aTags.length > 0) {
+                card.aTags.forEach(aTag => {
+                    newCardEvent.tags.push(['a', aTag]);
+                });
+            }
+
             await newCardEvent.publishReplaceable();
 
             // Update local store
             update(state => {
                 const newCards = new Map(state.cards);
                 const cards = newCards.get(boardId) || [];
-                console.log("card.dtag: "+ card.dTag);
                 const updatedCards = cards.map(c => 
                     c.dTag === card.dTag ? {
                         ...card,
-                        order: newOrder
+                        order: newOrder,
+                        created_at: newCardEvent.created_at!,
+                        id: newCardEvent.id,
+                        pubkey: newCardEvent.pubkey                        
                     } : c
                 );
                 newCards.set(boardId, updatedCards);

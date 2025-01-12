@@ -51,7 +51,6 @@
                 }
             }
             cards = state.cards.get(board.id) || [];
-            
             if (initialCardToOpen && !cardToOpen) {
                 const card = cards.find(c => 
                     c.pubkey === initialCardToOpen.pubkey && 
@@ -114,11 +113,6 @@
     $: unmappedCards = getUnmappedCards(cards, board.columns);
     $: showUnmappedColumn = unmappedCards.length > 0;
     
-    // print card changed in console whenever `cards` changes
-    $: {
-        console.log('Cards:');
-        console.log(JSON.stringify(cards));
-    }
 
     $: if (cardToOpen) {
         // Find which column contains the card
@@ -387,12 +381,12 @@
                 <Column
                     {column}
                     cards={column.cards}
-                    boardPubkey={board.pubkey}
                     onCardDrop={handleCardMove}
                     {board}
                     isNoZapBoard={board.isNoZapBoard}
                     readOnly={!canEdit}
                     cardToOpen={cardToOpen}
+                    onDeleteColumn={() => handleDeleteColumn(column.name)}
                 />
             {/each}
             
@@ -400,8 +394,6 @@
                 <Column
                     column={{ id: 'unmapped', name: 'Unmapped Cards', order: -1 }}
                     cards={unmappedCards}
-                    {boardId}
-                    boardPubkey={board.pubkey}
                     onCardDrop={handleCardMove}
                     isUnmapped={true}
                     {board}
@@ -633,7 +625,7 @@
         padding: 1rem;
         margin: 1rem 0;
         border-radius: 4px;
-        display: flex;
+        display: inline-flex;
         flex-direction: column;
         align-items: center;
         gap: 1rem;
