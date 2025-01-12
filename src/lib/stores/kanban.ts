@@ -322,7 +322,10 @@ function createKanbanStore() {
             const events = await ndk.fetchEvents(filter);
             const boardCards: Card[] = [];
 
-            for (const event of events) {
+            //dedupe card events which have the same d tag and keep only the latest using created_at timestamp
+            const dedupedEvents = dedupeEventsBasedOnDTag(events);
+
+            for (const event of dedupedEvents) {
                 try {
                     const titleTag = event.tags.find(t => t[0] === 'title');
                     const descTag = event.tags.find(t => t[0] === 'description');
@@ -568,14 +571,15 @@ function createKanbanStore() {
                 });
             }
 
-            await newCardEvent.publish();
+            await newCardEvent.publishReplaceable();
 
             // Update local store
             update(state => {
                 const newCards = new Map(state.cards);
                 const cards = newCards.get(boardId) || [];
+                console.log("card.dtag: "+ card.dTag);
                 const updatedCards = cards.map(c => 
-                    c.id === card.id ? {
+                    c.dTag === card.dTag ? {
                         ...card,
                         order: newOrder
                     } : c
@@ -795,3 +799,20 @@ function createKanbanStore() {
 }
 
 export const kanbanStore = createKanbanStore(); 
+
+function dedupeEventsBasedOnDTag(events: Set<NDKEvent>) {
+    const eventsByDTag = new Map<string, NDKEvent>();
+    for (const event of events) {
+        const dTag = event.tags.find(t => t[0] === 'd');
+        if (!dTag) continue;
+
+        const existingEvent = eventsByDTag.get(dTag[1]);
+        if (!existingEvent || existingEvent.created_at! < event.created_at!) {
+            eventsByDTag.set(dTag[1], event);
+        }
+    }
+
+    // Use only the latest events
+    const dedupedEvents = Array.from(eventsByDTag.values());
+    return dedupedEvents;
+}

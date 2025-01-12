@@ -42,6 +42,7 @@
 
         const boardSub = kanbanStore.subscribe(state => {
             const boardState = state.boards;
+            console.log("Board state changed");
             const boardWithCurrentID = boardState.find(b => b.id === board.id);        
             if (boardWithCurrentID) {
                 board = boardWithCurrentID;
@@ -49,6 +50,7 @@
                     needsMigration = true;
                 }
             }
+            cards = state.cards.get(board.id) || [];
         });
 
         const loadCards = async () => {
@@ -84,8 +86,8 @@
         loadCards();
 
         return () => {
-            ndkUnsubscribe();
-            boardSub();
+            ndkUnsubscribe;
+            boardSub;
         };
     });
 
