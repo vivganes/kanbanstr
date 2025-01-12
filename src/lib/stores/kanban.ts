@@ -405,20 +405,9 @@ function createKanbanStore() {
         }
     }
 
-    async function createCard(boardId: string, card: Card) {
+    async function createCard(aTagPointingToBoard: string, card: Card) {
         try {
-            // First get the board to get the card references
-            const boardFilter: NDKFilter = {
-                kinds: [30301 as NDKKind],
-                '#d': [boardId]
-            };
-
-            const boardEvents = await ndk.fetchEvents(boardFilter);
-            const boardEvent = Array.from(boardEvents)[0];
-            if (!boardEvent) {
-                console.error('Board not found');
-                return;
-            }
+           
             // Create the card event
             const cardEvent = new NDKEvent(ndk);
             cardEvent.kind = 30302 as NDKKind;
@@ -434,7 +423,7 @@ function createKanbanStore() {
                 ['s', card.status], // Status tag
                 ['rank', (card.order).toString()], // Rank tag for ordering
                 // Add board reference
-                ['a', `30301:${boardEvent.pubkey}:${boardId}`]
+                ['a', aTagPointingToBoard]
             ];
 
             // Add attachment tags
@@ -452,13 +441,14 @@ function createKanbanStore() {
             }
 
             await cardEvent.publish();
+            const boardId = aTagPointingToBoard.split(':')[2];
 
              // Update local store
              update(state => {
                 const newCards = new Map(state.cards);
                 const cards = newCards.get(boardId) || [];
                 cards.push({
-                    id: boardEvent.id,
+                    id: cardEvent.id,
                     dTag: cardIdentifier,
                     pubkey: cardEvent.pubkey,
                     title: card.title,

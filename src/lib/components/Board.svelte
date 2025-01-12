@@ -42,7 +42,6 @@
 
         const boardSub = kanbanStore.subscribe(state => {
             const boardState = state.boards;
-            console.log("Board state changed");
             const boardWithCurrentID = boardState.find(b => b.id === board.id);        
             if (boardWithCurrentID) {
                 board = boardWithCurrentID;
@@ -51,43 +50,37 @@
                 }
             }
             cards = state.cards.get(board.id) || [];
+            
+            if (initialCardToOpen && !cardToOpen) {
+                const card = cards.find(c => 
+                    c.pubkey === initialCardToOpen.pubkey && 
+                    c.dTag === initialCardToOpen.dTag
+                );
+                if (card) {
+                    cardToOpen = card;
+                }
+            }
         });
 
-        const loadCards = async () => {
+        const loadInitialData = async () => {
             try {
                 if(board.needsMigration){
                     await kanbanStore.loadCardsForLegacyBoard(board.id);
                 } else {
                     await kanbanStore.loadCardsForBoard(board.id);
                 }
-                const cardsSub = kanbanStore.subscribe(state => {
-                    cards = state.cards.get(board.id) || [];
-                    
-                    if (initialCardToOpen && !cardToOpen) {
-                        const card = cards.find(c => 
-                            c.pubkey === initialCardToOpen.pubkey && 
-                            c.dTag === initialCardToOpen.dTag
-                        );
-                        if (card) {
-                            cardToOpen = card;
-                        }
-                    }
-                });
-
                 loading = false;
-                return cardsSub;
             } catch (error) {
                 console.error('Failed to load cards:', error);
                 loading = false;
-                return () => {};
             }
         };
 
-        loadCards();
+        loadInitialData();
 
         return () => {
-            ndkUnsubscribe;
-            boardSub;
+            ndkUnsubscribe();
+            boardSub();
         };
     });
 
@@ -119,6 +112,12 @@
 
     $: unmappedCards = getUnmappedCards(cards, board.columns);
     $: showUnmappedColumn = unmappedCards.length > 0;
+    
+    // print card changed in console whenever `cards` changes
+    $: {
+        console.log('Cards:');
+        console.log(JSON.stringify(cards));
+    }
 
     $: if (cardToOpen) {
         // Find which column contains the card
@@ -247,6 +246,12 @@
             errorMessage = error instanceof Error ? error.message : 'Failed to update board';
         }
     }
+
+    $: columnCards = board.columns.map(col => ({
+        ...col,
+        cards: cards.filter(card => card.status === col.name)
+            .sort((a, b) => a.order - b.order)
+    }));
 </script>
 
 <div class="board">
@@ -375,32 +380,29 @@
                 </div>
             {/if}
             
-            {#each board.columns as column (column.id)}
-                <Column 
+            {#each columnCards as column (column.id)}
+                <Column
                     {column}
-                    cards={cards.filter(c => c.status === column.name)}
-                    boardId={board.id}
+                    cards={column.cards}
                     boardPubkey={board.pubkey}
                     onCardDrop={handleCardMove}
-                    cardToOpen={cardToOpen}
-                    onDeleteColumn={() => handleDeleteColumn(column.name)}
+                    {board}
                     isNoZapBoard={board.isNoZapBoard}
                     readOnly={!canEdit}
-                    {board}
                 />
             {/each}
+            
             {#if showUnmappedColumn}
-                <Column 
-                    column={{ id: 'unmapped', name: 'UNMAPPED', order: board.columns.length }}
+                <Column
+                    column={{ id: 'unmapped', name: 'Unmapped Cards', order: -1 }}
                     cards={unmappedCards}
-                    boardId={board.id}
+                    {boardId}
                     boardPubkey={board.pubkey}
                     onCardDrop={handleCardMove}
                     isUnmapped={true}
-                    cardToOpen={cardToOpen}
+                    {board}
                     isNoZapBoard={board.isNoZapBoard}
                     readOnly={!canEdit}
-                    {board}
                 />
             {/if}
         {/if}

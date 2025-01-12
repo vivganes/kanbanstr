@@ -6,7 +6,7 @@
     import ZapModal from './ZapModal.svelte';
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
-    import { getUserDisplayName, getUserDisplayNameByNip05 } from '../utils/user';
+    import { getUserDisplayName } from '../utils/user';
 
     export let card: Card;
     export let boardId: string;
@@ -188,7 +188,7 @@
         {#if hasAssigneesOrAttachments}            
             <div class="footer-row">
                 {#if card.assignees && card.assignees.length > 0}
-                    <div class="assignees">
+                <div class="assignees">                        
                         {#each card.assignees as assignee}
                             {#await getUserDisplayName(assignee)}
                                 <span class="assignee">Loading...</span>

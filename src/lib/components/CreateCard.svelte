@@ -10,7 +10,7 @@
 
     export let onClose: () => void;
     export let columnName: string;
-    export let boardId: string;
+    export let aTagPointingToBoard: string;
     export let cardsCount: number;
 
     let title = '';
@@ -105,10 +105,11 @@
     }
 
     async function handleSubmit() {
+        console.log("submitted");
         if (!title.trim()) return;
 
         try {
-            await kanbanStore.createCard(boardId, {
+            await kanbanStore.createCard(aTagPointingToBoard, {
                 title,
                 description: description.trim(),
                 status: columnName,

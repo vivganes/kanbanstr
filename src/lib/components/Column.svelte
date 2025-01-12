@@ -9,8 +9,6 @@
     export let column: Column;
     export let cards: Card[];
     export let readOnly: boolean = false;
-    export let boardId: string;
-    export let boardPubkey: string;
     export let onCardDrop: (cardId: string, targetStatus: string, targetIndex?: number) => Promise<void>;
     export let isUnmapped: boolean = false;
     export let cardToOpen: Card | null = null;
@@ -100,6 +98,9 @@
         isDragOver = true;
         dragOverIndex = cards.length;
     }
+
+    // Make cards reactive
+    $: sortedCards = cards.sort((a, b) => a.order - b.order);
 </script>
 
 <div 
@@ -143,7 +144,7 @@
     </header>
 
     <div class="cards">
-        {#each cards.sort((a, b) => a.order - b.order) as card, i (card.id)}            
+        {#each sortedCards as card, i (card.dTag)}            
             <div
                 class="card-wrapper"
                 on:dragover|preventDefault|stopPropagation={(e) => handleDragOver(e, i)}
@@ -151,8 +152,8 @@
             >
                 <CardComponent 
                     {card} 
-                    {boardId}
-                    {boardPubkey}
+                    boardId={board.id}
+                    boardPubkey={board.pubkey}
                     {isUnmapped}
                     showDetails={cardToOpen?.id === card.id} 
                     {isNoZapBoard}     
@@ -171,7 +172,7 @@
         <CreateCard
             onClose={closeCreateModal}
             columnName={column.name}
-            {boardId}
+            aTagPointingToBoard={`30301:${board.pubkey}:${board.id}`} 
             cardsCount={cards.length}
         />
     {/if}
