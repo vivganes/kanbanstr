@@ -7,6 +7,13 @@
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05 } from '../utils/user';
+    import { kanbanStore } from '../stores/kanban';
+    import type { KanbanBoard } from '../stores/kanban';
+    import ContextMenu from './ContextMenu.svelte';
+    import { createEventDispatcher } from 'svelte';
+    import BoardSelectorModal from './BoardSelectorModal.svelte';
+
+    const dispatch = createEventDispatcher(); 
 
     export let card: Card;
     export let boardId: string;
@@ -30,6 +37,13 @@
     let canUserZap = false;
     let zapImpossibleReason: string|undefined = undefined;
     let creatorName = 'Unknown';
+    let boards: KanbanBoard[] = []; 
+    let selectedBoardId: string | null = null;
+    let loadingBoards = false;
+    let menuPosition = { x: 0, y: 0 };
+    let activeMenu: string | null = null;
+    let showBoardSelector = false;
+    let targetBoardId: string | null = null; 
 
     onMount(async () => {       
         try {
@@ -59,8 +73,13 @@
             }
         });
 
-        return {
-            unsubscribe
+        const unsubKanban = kanbanStore.subscribe(state => {
+            boards = state.myBoards;
+        });
+
+        return ()=> {
+            unsubscribe();
+            unsubKanban();
         };
     });
 
@@ -90,6 +109,8 @@
     }
 
     function copyPermalink() {
+        event.preventDefault();
+        event.stopPropagation();
         if (copyTimeout) clearTimeout(copyTimeout);
 
         const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/${card.pubkey}/${card.dTag}`;
@@ -148,6 +169,88 @@
     onMount(() => {
         loadZapAmount();
     });
+
+    function closeMenu() {
+        activeMenu = null;
+    }
+
+    async function openMenu(event,cardId: string) {
+        if (activeMenu && activeMenu !== cardId) {
+            activeMenu = null;
+        }
+
+        activeMenu = cardId;
+
+        // Calculate the correct position for the context menu
+        let menuWidth = 200; // You can adjust this value based on your context menu width
+        let menuHeight = 150; // Same for height
+        let xPos = event.clientX;
+        let yPos = event.clientY;
+
+        // Prevent the menu from overflowing the viewport horizontally
+        if (xPos + menuWidth > window.innerWidth) {
+            xPos = window.innerWidth - menuWidth;
+        }
+
+        // Prevent the menu from overflowing the viewport vertically
+        if (yPos + menuHeight > window.innerHeight) {
+            yPos = window.innerHeight - menuHeight;
+        }
+
+        menuPosition = { x: xPos, y: yPos };
+        menuPosition = { x: event.clientX, y: event.clientY };
+
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+        function openBoardSelector() {
+        showBoardSelector = true;
+    }
+
+    function closeBoardSelector() {
+        showBoardSelector = false;
+    }
+
+    async function handleBoardSelect(id: string) {
+        targetBoardId = id; 
+
+        try {
+            await kanbanStore.copyCardToBoard(boardId, card, targetBoardId);
+            closeBoardSelector(); 
+        } catch (error) {
+            console.error('Failed to copy card:', error);
+        }
+    }
+
+    async function copyCard() {
+        event.preventDefault();
+        event.stopPropagation();
+
+        openBoardSelector();
+    }
+
+    function handleMenuSelect(item) {
+        const action = item.detail;  // Get the action from event.detail
+
+        if (action === 'copy') {
+            console.log("copy action invoked")
+            copyCard();
+        }else if (action === 'copyPermalink') {
+            copyPermalink();
+        }
+        closeMenu();
+        dispatch('menuSelect', item);
+    }
+
+    const menuItems = [
+        { label: 'Copy Card',icon: 'content_copy', action: 'copy'  },
+        {
+            label: copySuccess ? 'Copied!' : 'Copy Permalink',
+            icon: copySuccess ? 'check' : 'link',
+            action: 'copyPermalink'
+        }
+    ];
 </script>
 
 <div 
@@ -155,22 +258,14 @@
     draggable="true"
     on:click={openDetails}
     on:dragstart={handleDragStart}
+    on:contextmenu={(e) => openMenu(e, card.id)}
 >
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
-        <div class="card-actions">
-            <button 
-                class="permalink-button" 
-                on:click|stopPropagation={copyPermalink}
-                title="Copy permalink"
-            >
-                {#if copySuccess}
-                    ✓
-                {:else}
-                    🔗
-                {/if}
+            <button on:click|preventDefault|stopPropagation={(e) => openMenu(e, card.id)}
+                class="more-options-btn">
+                <span class="material-icons">more_vert</span> 
             </button>
-        </div>
     </div>
 
     <div class="card-meta">
@@ -238,6 +333,22 @@
             {/if}
         </div>
     </div>
+
+    {#if activeMenu === card.id}
+        <ContextMenu
+            items={menuItems}
+            position={menuPosition}
+            visible={true}
+            on:select={handleMenuSelect}
+            on:close={closeMenu}
+        />
+    {/if}
+     <BoardSelectorModal
+                boards={boards.filter(board => board.id !== boardId)} 
+                visible={showBoardSelector}
+                onClose={closeBoardSelector}
+                on:select={e => handleBoardSelect(e.detail)}
+            />
 </div>
 
 {#if showDetails}
@@ -266,6 +377,7 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.12);
         cursor: pointer;
         user-select: none;
+        position: relative;
     }
 
     .card:hover {
@@ -508,4 +620,73 @@
             color: #999;
         }
     }
+
+    .more-options-btn {
+        background: none;
+        color:black;
+        border: none;
+        padding: 0.2rem;
+        cursor: pointer;
+        font-size: 1rem;
+        opacity: 0.6;
+        border-radius: 4px;
+        transition: opacity 0.2s, background-color 0.2s;
+    }
+
+    .more-options-btn:hover {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        z-index: 10;
+        width: 200px;
+    }
+
+    .board-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .copy-btn {
+        padding: 0.5rem 1rem;
+        background: #0052cc;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+    }
+
+    
+    .context-menu {
+        position: absolute;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        z-index: 10;
+    }
+
+    .context-menu-item {
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+    }
+
+    .context-menu-item:hover {
+        background: #f5f5f5;
+    }
+
+    .context-menu {
+        top: var(--context-menu-top);
+        left: var(--context-menu-left);
+    }
+
 </style> 

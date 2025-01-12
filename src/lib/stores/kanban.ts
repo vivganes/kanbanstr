@@ -776,6 +776,21 @@ function createKanbanStore() {
         return board.maintainers?.includes(userPubkey) || false;
     }
 
+    async function copyCardToBoard(originalBoardId: string, card: Card, targetBoardId: string) {
+        try {
+            const newCard = {
+                ...card,
+                id: crypto.randomUUID()            
+            };
+    
+            await createCard(targetBoardId, newCard);
+        } catch (error) {
+            console.error('Failed to copy card:', error);
+            throw error;
+        }
+    }
+
+
     return {
         subscribe,
         init,
@@ -790,7 +805,8 @@ function createKanbanStore() {
         updateBoard,
         updateCard,
         hasNDK,
-        canEditCards
+        canEditCards,
+        copyCardToBoard
     };
 }
 

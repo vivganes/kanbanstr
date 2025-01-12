@@ -7,6 +7,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
+    import BoardSelectorModal from './BoardSelectorModal.svelte';
 
     export let card: Card;
     export let boardId: string;
@@ -31,11 +32,19 @@
     let currentAssigneeDisplay: string | null = null;
     let isLoadingAssignee = false;
     let assigneeError: string | null = null;
+    let targetBoardId: string | null = null; 
+    let showBoardSelector = false;
+    let boards: KanbanBoard[] = [];
 
-    onMount(() => {
+
+    onMount(async () => {
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
+        });
+
+        const unsubKanban = kanbanStore.subscribe(state => {
+            boards = state.myBoards;
         });
 
         editor = new Editor({
@@ -55,9 +64,10 @@
             }            
         });
 
-        return {
-            unsubscribeNdk
-        }
+        return () => {
+                unsubscribeNdk();
+                unsubKanban();
+        };
     });
 
     onDestroy(() => {
@@ -145,6 +155,30 @@
             error = err.message || 'Failed to save card';
         } finally {
             isSaving = false;
+        }
+    }
+
+    async function handleCopyCard() {
+        openBoardSelector()
+    }
+
+    
+    function openBoardSelector() {
+        showBoardSelector = true;
+    }
+
+    function closeBoardSelector() {
+        showBoardSelector = false;
+    }
+
+    async function handleBoardSelect(id: string) {
+        targetBoardId = id; 
+
+        try {
+            await kanbanStore.copyCardToBoard(boardId, card, targetBoardId);
+            closeBoardSelector(); 
+        } catch (error) {
+            console.error('Failed to copy card:', error);
         }
     }
 
@@ -300,6 +334,13 @@
                 {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
             {/if}
+            <button type="button" class="copy" on:click={handleCopyCard}>Copy Card</button>
+            <BoardSelectorModal
+                boards={boards.filter(board => board.id !== boardId)} 
+                visible={showBoardSelector}
+                onClose={closeBoardSelector}
+                on:select={e => handleBoardSelect(e.detail)}
+            />
         </footer>
     </div>
 </div>
@@ -316,6 +357,11 @@
         justify-content: center;
         align-items: center;
         z-index: 1000;
+    }
+
+    textarea{
+        width: 100%;
+        height: 50px;
     }
 
     .modal {
