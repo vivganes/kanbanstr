@@ -46,7 +46,7 @@
             errorMessage = null;
             
             if (tab === 'my-boards') {
-                await kanbanStore.loadMyBoards();
+                await kanbanStore.loadBoards(true);
             } else {
                 await kanbanStore.loadBoards();
             }
@@ -66,7 +66,7 @@
                         kanbanStore.init(ndkInstance.ndk!);
                     }
                     // Load my boards by default
-                    kanbanStore.loadMyBoards();
+                    kanbanStore.loadBoards(true);
                 }
             });
 
@@ -87,34 +87,10 @@
         initialize();
     });
 
-    async function initializeApp() {
-        try {
-            if(!ndkInstance.ndk) {
-                throw new Error('NDK not initialized');
-            }
-            await kanbanStore.init(ndkInstance.ndk!);
-            
-            await kanbanStore.loadBoards();
-            
-            const unsubscribe = kanbanStore.subscribe(state => {
-                boards = state.boards;
-                loading = state.loading;
-                errorMessage = state.error;
-            });
-
-            return unsubscribe;
-        } catch (error) {
-            errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-        }
-    }
 
     function handleLogout() {
         kanbanStore.clearStore();
         ndkInstance.logout();
-    }
-
-    async function  getCurrentUserName() {
-        return currentUser?.profile?.displayName;
     }
 
     function handleBoardClick(pubkey: string, boardId: string) {

@@ -1,14 +1,15 @@
 import { writable, get } from 'svelte/store';
 import NDK, { NDKEvent, NDKUser, type NDKFilter, type NDKKind } from '@nostr-dev-kit/ndk';
+import KanbanMigrationUtil from '../utils/MigrationUtilV1';
 
 export interface KanbanBoard {
     id: string;
     pubkey: string;
     title: string;
     description: string;
-    columnMapping: string;
     columns: Column[];
     isNoZapBoard: boolean;
+    needsMigration?: boolean;
 }
 
 export interface Column {
@@ -62,7 +63,7 @@ function createKanbanStore() {
         ndk = ndkInstance;
     }
 
-    async function loadBoards() {
+    async function loadLegacyBoards() {
         console.log("Loading boards");
         update(state => ({ ...state, loading: true, error: null }));
         
@@ -86,7 +87,6 @@ function createKanbanStore() {
                         pubkey: event.pubkey,
                         title: titleTag ? titleTag[1] : 'Untitled Board',
                         description: content.description,
-                        columnMapping: content.columnMapping || 'EXACT',
                         columns: content.columns,
                         isNoZapBoard: content.isNoZapBoard || false
                     });
@@ -112,6 +112,89 @@ function createKanbanStore() {
         }
     }
 
+    async function loadBoards(myBoardsOnly: boolean = false) {
+        update(state => ({ ...state, loading: true, error: null }));
+        
+        try {
+            const filter: NDKFilter = {
+                kinds: [30301 as NDKKind],                
+                limit: 500,
+            };
+            if(myBoardsOnly){
+                filter.authors = [ndk.activeUser?.pubkey!];
+            }
+
+            const events = await ndk.fetchEvents(filter);
+            const boards: KanbanBoard[] = [];
+
+            for (const event of events) {
+                try {
+                    const hasATags = event.tags.some(t => t[0] === 'a');
+                    const contentHasColumns = event.content && JSON.parse(event.content).columns;                    
+                   
+
+                    let titleTag = event.tags.find(t => t[0] === 'title');
+                    let descTag = event.tags.find(t => t[0] === 'description');
+                    let dTag = event.tags.find(t => t[0] === 'd');
+                    
+                    // Get columns from col tags
+                    let columns = event.tags
+                        .filter(t => t[0] === 'col')
+                        .map(t => ({
+                            id: t[1],
+                            name: t[2],
+                            order: parseInt(t[3])
+                        }));
+                        
+                    // Check if this is a no-zap board (no maintainer zap tags)
+                    let hasZapTags = event.tags.some(t => t[0] === 'zap');
+
+                    if(hasATags || contentHasColumns){
+                        //legacy board
+                        const eventContent = JSON.parse(event.content);
+                        columns = eventContent.columns;       
+                        descTag = ['description',eventContent.description];            
+                    }
+
+                    boards.push({
+                        id: dTag ? dTag[1] : event.id,
+                        pubkey: event.pubkey,
+                        title: titleTag ? titleTag[1] : 'Untitled Board',
+                        description: descTag ? descTag[1] : '',
+                        columns,
+                        isNoZapBoard: !hasZapTags,
+                        needsMigration: hasATags || contentHasColumns
+                    });
+                } catch (error) {
+                    console.error('Failed to parse board event:', error);
+                }
+            }
+
+            console.log('Loaded boards:', boards);
+            if(myBoardsOnly){
+                update(state => ({
+                    ...state,
+                    myBoards: boards,
+                    loading: false
+                }));
+            } else{
+                update(state => ({
+                    ...state,
+                    boards,
+                    loading: false
+                }));
+            }            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load boards';
+            update(state => ({
+                ...state,
+                loading: false,
+                error: errorMessage
+            }));
+            throw error;
+        }
+    }
+
     async function clearStore(){
         await update(state => ({
             boards: [],
@@ -122,8 +205,8 @@ function createKanbanStore() {
             error: null,
         }));
     }
-
-    async function loadCardsForBoard(boardId: string) {
+    
+    async function loadCardsForLegacyBoard(boardId: string) {
         try {
             // First get the board to get the card references
             const boardFilter: NDKFilter = {
@@ -209,19 +292,98 @@ function createKanbanStore() {
         }
     }
 
+    async function loadCardsForBoard(boardId: string) {
+        try {
+            // First get the board to get the card references
+            const boardFilter: NDKFilter = {
+                kinds: [30301 as NDKKind],
+                '#d': [boardId]
+            };
+
+            const boardEvents = await ndk.fetchEvents(boardFilter);
+            const boardEvent = Array.from(boardEvents)[0];
+            if (!boardEvent) {
+                console.error('Board not found');
+                return;
+            }
+            
+            const filter: NDKFilter = {
+                kinds: [30302 as NDKKind],
+                '#a': [`30301:${boardEvent.pubkey}:${boardId}`]
+            };
+
+            const events = await ndk.fetchEvents(filter);
+            const boardCards: Card[] = [];
+
+            for (const event of events) {
+                try {
+                    const titleTag = event.tags.find(t => t[0] === 'title');
+                    const descTag = event.tags.find(t => t[0] === 'description');
+                    const dTag = event.tags.find(t => t[0] === 'd');
+                    const statusTag = event.tags.find(t => t[0] === 's');
+                    const rankTag = event.tags.find(t => t[0] === 'rank');
+                    
+                    // Get attachments from u tags
+                    const attachments = event.tags
+                        .filter(t => t[0] === 'u')
+                        .map(t => t[1]);
+
+                    // Get assignees from zap tags
+                    const assignees = event.tags
+                        .filter(t => t[0] === 'zap')
+                        .map(t => t[1]);
+
+                    // Handle tracker cards
+                    const isTrackerCard = event.tags.some(t => t[0] === 'k');
+                    if (isTrackerCard) {
+                        // Implementation for tracker cards...
+                        continue;
+                    }
+
+                    boardCards.push({
+                        id: event.id,
+                        dTag: dTag ? dTag[1] : event.id,
+                        pubkey: event.pubkey,
+                        title: titleTag ? titleTag[1] : 'Untitled Card',
+                        description: descTag ? descTag[1] : '',
+                        status: statusTag ? statusTag[1] : 'To Do',
+                        order: rankTag ? parseInt(rankTag[1]) : 0,
+                        attachments,
+                        assignees,
+                        created_at: event.created_at!
+                    });
+                } catch (error) {
+                    console.error('Failed to parse card event:', error);
+                }
+            }
+
+            update(state => {
+                const newCards = new Map(state.cards);
+                newCards.set(boardId, boardCards);
+                return { ...state, cards: newCards };
+            });
+        } catch (error) {
+            console.error('Failed to load cards:', error);
+            throw error;
+        }
+    }
+
     async function createBoard(title: string, description: string, columns: Column[]) {
         try {
             const event = new NDKEvent(ndk);
             event.kind = 30301 as NDKKind;
-            event.content = JSON.stringify({
-                description,
-                columnMapping: 'EXACT',
-                columns
-            });
             
+            // Generate a unique identifier for the board
+            const boardId = crypto.randomUUID();
+            
+            // Add tags according to new spec
             event.tags = [
-                ['d', crypto.randomUUID()],
-                ['title', title]
+                ['d', boardId],
+                ['title', title],
+                ['description', description],
+                ['alt', `A board titled ${title}`],
+                // Add column tags
+                ...columns.map(col => ['col', col.id, col.name, col.order.toString()])
             ];
 
             await event.publish();
@@ -236,7 +398,7 @@ function createKanbanStore() {
 
     async function createCard(boardId: string, card: Omit<Card, 'id'>) {
         try {
-            // Find the board event
+            // First get the board to get the card references
             const boardFilter: NDKFilter = {
                 kinds: [30301 as NDKKind],
                 '#d': [boardId]
@@ -245,67 +407,49 @@ function createKanbanStore() {
             const boardEvents = await ndk.fetchEvents(boardFilter);
             const boardEvent = Array.from(boardEvents)[0];
             if (!boardEvent) {
-                throw new Error('Board not found');
+                console.error('Board not found');
+                return;
             }
-
-            const currentUser = await ndk.signer?.user();
-            if (!currentUser) {
-                throw new Error('User not found');
-            }
-            if (currentUser.pubkey !== boardEvent.pubkey) {
-                throw new Error('You do not have permission to update this board');
-            }
-
             // Create the card event
             const cardEvent = new NDKEvent(ndk);
             cardEvent.kind = 30302 as NDKKind;
             
-            const cardContent = {
-                status: card.status,
-                description: card.description,
-                order: card.order,
-                attachments: card.attachments || []
-            };
-            
             const cardIdentifier = crypto.randomUUID();
-            cardEvent.content = JSON.stringify(cardContent);
+            
+            // Add tags according to new spec
             cardEvent.tags = [
                 ['d', cardIdentifier],
-                ['title', card.title]
+                ['title', card.title],
+                ['description', card.description],
+                ['alt', `A card titled ${card.title}`],
+                ['s', card.status], // Status tag
+                ['rank', (card.order).toString()], // Rank tag for ordering
+                // Add board reference
+                ['a', `30301:${boardEvent.pubkey}:${boardId}`]
             ];
 
+            // Add attachment tags
+            if (card.attachments && card.attachments.length > 0) {
+                card.attachments.forEach(url => {
+                    cardEvent.tags.push(['u', url]);
+                });
+            }
+
+            // Add assignee tags as zap tags
             if (card.assignees && card.assignees.length > 0) {
                 card.assignees.forEach(assignee => {
-                    cardEvent.tags.push(['zap', assignee, '1']); // Add explicit relay URL
+                    cardEvent.tags.push(['zap', assignee]);
                 });
             }
 
             await cardEvent.publish();
 
-            // Create a new board event with the updated card list
-            const newBoardEvent = new NDKEvent(ndk);
-            newBoardEvent.kind = 30301 as NDKKind;
-            newBoardEvent.content = boardEvent.content;
-
-            // Copy existing tags except 'a' tags
-            newBoardEvent.tags = [
-                ...boardEvent.tags.filter(t => t[0] !== 'a'),
-                // Add reference to the new card
-                ['a', `30302:${cardEvent.pubkey}:${cardIdentifier}`]
-            ];
-
-            // Add back all existing card references
-            const existingCardRefs = boardEvent.tags.filter(t => t[0] === 'a');
-            newBoardEvent.tags.push(...existingCardRefs);
-
-            await newBoardEvent.publish();
-
-            // Update local store
-            update(state => {
+             // Update local store
+             update(state => {
                 const newCards = new Map(state.cards);
                 const cards = newCards.get(boardId) || [];
                 cards.push({
-                    id: newBoardEvent.id,
+                    id: boardEvent.id,
                     dTag: cardIdentifier,
                     pubkey: cardEvent.pubkey,
                     title: card.title,
@@ -324,7 +468,7 @@ function createKanbanStore() {
             });
         } catch (error) {
             console.error('Failed to create card:', error);
-            throw error; // Re-throw the error so it can be caught by the component
+            throw error;
         }
     }
 
@@ -368,64 +512,68 @@ function createKanbanStore() {
 
     async function updateCard(boardId: string, card: Card, targetIndex?: number) {
         try {
-            console.log("Updating card with id: ", card.id);
+            // Get the original card event
+            const cardFilter: NDKFilter = {
+                kinds: [30302 as NDKKind],
+                ids: [card.id]
+            };
 
-            const currentUser = await ndk.signer?.user();
-            if (!currentUser) {
-                throw new Error('User not found');
-            }
-            if (currentUser.pubkey !== card.pubkey) {
-                throw new Error('You do not have permission to update this board');
-            }
-
-            const cardEvent = await findNDKCardEventByDtag(card.dTag);
-            if (!cardEvent) {
+            const events = await ndk.fetchEvents(cardFilter);
+            const originalEvent = Array.from(events)[0];
+            if (!originalEvent) {
                 throw new Error('Card not found');
             }
 
-            // Get current cards to calculate new order if needed
+            // Create new card event
+            const newCardEvent = new NDKEvent(ndk);
+            newCardEvent.kind = 30302 as NDKKind;
+
+            // If targetIndex is provided, calculate new order
             let newOrder = card.order;
             if (targetIndex !== undefined) {
-                const currentState = get(kanbanStore);
-                const currentCards = currentState.cards.get(boardId) || [];
+                const currentCards = get(kanbanStore).cards.get(boardId) || [];
                 newOrder = calculateNewOrder(currentCards, card.id, card.status, targetIndex);
             }
-            
-            const cardContent = {
-                status: card.status,
-                description: card.description,
-                order: newOrder,
-                attachments: card.attachments || []
-            };
-            
-            cardEvent.content = JSON.stringify(cardContent);
-            cardEvent.tags = [
-                ['d', cardEvent.tags.find(t => t[0] === 'd')![1]],
-                ['title', card.title]
+
+            // Add tags according to new spec
+            newCardEvent.tags = [
+                ['d', card.dTag], // Keep the same d tag for updates
+                ['title', card.title],
+                ['description', card.description],
+                ['alt', `A card titled ${card.title}`],
+                ['s', card.status],
+                ['rank', newOrder.toString()],
+                // Keep the same board reference
+                ...originalEvent.tags.filter(t => t[0] === 'a')
             ];
 
-            // Add assignee tags if there are any
-            if (card.assignees && card.assignees.length > 0) {
-                // Add each assignee as a 'p' tag (NIP-01 standard for referencing pubkeys)
-                card.assignees.forEach(assignee => {
-                    cardEvent.tags.push(['zap', assignee, '1']); // Add explicit relay URL
+            // Add attachment tags
+            if (card.attachments && card.attachments.length > 0) {
+                card.attachments.forEach(url => {
+                    newCardEvent.tags.push(['u', url]);
                 });
             }
 
-            await cardEvent.publishReplaceable();
+            // Add assignee tags as zap tags
+            if (card.assignees && card.assignees.length > 0) {
+                card.assignees.forEach(assignee => {
+                    newCardEvent.tags.push(['zap', assignee]);
+                });
+            }
 
-            // Update the local store
+            await newCardEvent.publish();
+
+            // Update local store
             update(state => {
                 const newCards = new Map(state.cards);
                 const cards = newCards.get(boardId) || [];
-                const cardIndex = cards.findIndex(c => c.id === card.id);
-                if (cardIndex !== -1) {
-                    cards[cardIndex] = {
+                const updatedCards = cards.map(c => 
+                    c.id === card.id ? {
                         ...card,
                         order: newOrder
-                    };
-                }
-                newCards.set(boardId, cards);
+                    } : c
+                );
+                newCards.set(boardId, updatedCards);
                 return {
                     ...state,
                     cards: newCards
@@ -437,7 +585,7 @@ function createKanbanStore() {
         }
     }
 
-    async function loadBoardByPubkeyAndId(pubkey: string, boardId: string): Promise<KanbanBoard | null> {
+    async function loadLegacyBoardByPubkeyAndId(pubkey: string, boardId: string): Promise<KanbanBoard | null> {
         try {
             const filter: NDKFilter = {
                 kinds: [30301 as NDKKind],
@@ -458,9 +606,9 @@ function createKanbanStore() {
                         pubkey: event.pubkey,
                         title: titleTag ? titleTag[1] : 'Untitled Board',
                         description: content.description,
-                        columnMapping: content.columnMapping || 'EXACT',
                         columns: content.columns,
-                        isNoZapBoard: content.isNoZapBoard || false
+                        isNoZapBoard: content.isNoZapBoard || false,
+                        needsMigration: true
                     };
                     break; // We only need the first matching board
                 } catch (error) {
@@ -468,8 +616,74 @@ function createKanbanStore() {
                 }
             }
 
+            if (board) {               
+                    await loadCardsForLegacyBoard(board.id);               
+            }
+
+            return board;
+        } catch (error) {
+            console.error('Failed to load board:', error);
+            throw error;
+        }
+    }
+
+    async function loadBoardByPubkeyAndId(pubkey: string, boardId: string): Promise<KanbanBoard | null> {
+        try {
+            const filter: NDKFilter = {
+                kinds: [30301 as NDKKind],
+                authors: [pubkey],
+                '#d': [boardId]
+            };
+
+            const events = await ndk.fetchEvents(filter);
+            let board: KanbanBoard | null = null;
+
+            for await (const event of events) {
+                try {
+                    const migrationRequired = event.tags.some(t => t[0] === 'a') || (event.content && JSON.parse(event.content).columns);
+                    const titleTag = event.tags.find(t => t[0] === 'title');
+                    const dTag = event.tags.find(t => t[0] === 'd');
+                    let descriptionTag = event.tags.find(t => t[0] === 'description');
+                    const isNoZapBoardTag = event.tags.find(t => t[0] === 'nozap');
+
+                    if(!migrationRequired){
+                        // Get columns from col tags
+                        const columns = event.tags
+                            .filter(t => t[0] === 'col')
+                            .map(t => ({
+                                id: t[1],
+                                name: t[2],
+                                order: parseInt(t[3])
+                            }));
+
+                        board = {
+                            id: dTag ? dTag[1] : event.id,
+                            pubkey: event.pubkey,
+                            title: titleTag ? titleTag[1] : 'Untitled Board',
+                            description: descriptionTag ? descriptionTag[1] : '',
+                            columns,
+                            isNoZapBoard: isNoZapBoardTag ? true : false,
+                            needsMigration: migrationRequired
+                        };
+                    } else {
+                        const oldBoard = await loadLegacyBoardByPubkeyAndId(pubkey, boardId);
+                        if(oldBoard){
+                            board = oldBoard;
+                        }
+                    }                    
+                    
+                    break; // We only need the first matching board
+                } catch (error) {
+                    console.error('Failed to parse board event:', error);
+                }
+            }
+
             if (board) {
-                await loadCardsForBoard(board.id);
+                if(!board.needsMigration){
+                    await loadCardsForBoard(board.id);
+                } else {
+                    await loadCardsForLegacyBoard(board.id);
+                }
             }
 
             return board;
@@ -501,24 +715,23 @@ function createKanbanStore() {
                 throw new Error('Board not found');
             }
 
-            const content = JSON.parse(boardEvent.content);
-            content.description = board.description;
-
+            // Create new board event
             const newBoardEvent = new NDKEvent(ndk);
             newBoardEvent.kind = 30301 as NDKKind;
-            newBoardEvent.content = JSON.stringify({
-                columns: board.columns,
-                columnMapping: board.columnMapping,
-                description: board.description,
-            });
+
+            // Add tags according to new spec
             newBoardEvent.tags = [
                 ['d', board.id],
-                ['title', board.title]
+                ['title', board.title],
+                ['description', board.description],
+                ['alt', `A board titled ${board.title}`],
+                // Add column tags
+                ...board.columns.map(col => ['col', col.id, col.name, col.order.toString()])
             ];
 
-            //copy all 'a' tags
-            const existingCardRefs = boardEvent.tags.filter(t => t[0] === 'a');
-            newBoardEvent.tags.push(...existingCardRefs);
+            // Copy over any existing zap tags for maintainers
+            const existingZapTags = boardEvent.tags.filter(t => t[0] === 'zap');
+            newBoardEvent.tags.push(...existingZapTags);
 
             await newBoardEvent.publishReplaceable();
 
@@ -532,64 +745,13 @@ function createKanbanStore() {
             }));
         } catch (error) {
             console.error('Failed to update board:', error);
-            throw error; // Re-throw the error so it can be caught by the component
-        }
-    }
-
-    async function loadMyBoards() {
-        update(state => ({ ...state, loading: true, error: null }));
-        
-        try {
-            const currentUser = await ndk.signer?.user();
-            if (!currentUser) {
-                throw new Error('User not found');
-            }
-
-            const filter: NDKFilter = {
-                kinds: [30301 as NDKKind],
-                authors: [currentUser.pubkey],
-                limit: 500
-            };
-
-            const events = await ndk.fetchEvents(filter);
-            const myBoards: KanbanBoard[] = [];
-
-            for (const event of events) {
-                try {
-                    const content = JSON.parse(event.content);
-                    const titleTag = event.tags.find(t => t[0] === 'title');
-                    const dTag = event.tags.find(t => t[0] === 'd');
-                    myBoards.push({
-                        id: dTag ? dTag[1] : event.id,
-                        pubkey: event.pubkey,
-                        title: titleTag ? titleTag[1] : 'Untitled Board',
-                        description: content.description,
-                        columnMapping: content.columnMapping || 'EXACT',
-                        columns: content.columns,
-                        isNoZapBoard: content.isNoZapBoard || false
-                    });
-                } catch (error) {
-                    console.error('Failed to parse board event:', error);
-                }
-            }
-
-            update(state => ({
-                ...state,
-                myBoards,
-                loading: false
-            }));
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to load my boards';
-            update(state => ({
-                ...state,
-                loading: false,
-                error: errorMessage
-            }));
             throw error;
         }
     }
 
-    
+    async function loadMyBoards() {
+        await loadBoards(true);
+    }
 
     return {
         subscribe,
@@ -598,12 +760,13 @@ function createKanbanStore() {
         loadBoards,
         loadMyBoards,
         loadCardsForBoard,
+        loadCardsForLegacyBoard,
         createBoard,
         createCard,
         loadBoardByPubkeyAndId,
         updateBoard,
         updateCard,
-        hasNDK,
+        hasNDK
     };
 }
 

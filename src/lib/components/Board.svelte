@@ -8,6 +8,7 @@
     import ReorderColumnsModal from './ReorderColumnsModal.svelte';
     import { ndkInstance } from '../ndk';
     import { push } from 'svelte-spa-router';
+    import KanbanMigrationUtil from '../utils/MigrationUtilV1';
 
     export let board: KanbanBoard;
     export let initialCardToOpen: { pubkey: string, dTag: string } | undefined = undefined;
@@ -26,6 +27,7 @@
     let errorMessage: string | null = null;
     let currentUser: any = null;
     let loginMethod: string | null = null;
+    let needsMigration:boolean = board.needsMigration || false;
 
     onMount(() => {
         const ndkUnsubscribe = ndkInstance.store.subscribe(state => {
@@ -38,12 +40,19 @@
             const boardWithCurrentID = boardState.find(b => b.id === board.id);        
             if (boardWithCurrentID) {
                 board = boardWithCurrentID;
+                if(board.needsMigration){
+                    needsMigration = true;
+                }
             }
         });
 
         const loadCards = async () => {
             try {
-                await kanbanStore.loadCardsForBoard(board.id);
+                if(board.needsMigration){
+                    await kanbanStore.loadCardsForLegacyBoard(board.id);
+                } else {
+                    await kanbanStore.loadCardsForBoard(board.id);
+                }
                 const cardsSub = kanbanStore.subscribe(state => {
                     cards = state.cards.get(board.id) || [];
                     
@@ -194,7 +203,21 @@
     $: canEdit = currentUser && 
                  loginMethod !== 'readonly' && 
                  loginMethod !== 'npub' && 
-                 currentUser.pubkey === board.pubkey;
+                 currentUser.pubkey === board.pubkey &&
+                 !needsMigration
+
+
+    function doMigration() {
+        const migrationUtil = new KanbanMigrationUtil(ndkInstance.ndk!);
+
+        migrationUtil.migrateBoard(board.id, board.pubkey).then(() => {
+            needsMigration = false;
+        }).catch((e) => {
+            console.error('Failed to migrate board:', e);
+            alertMessage = 'Failed to migrate board. Please try again.';
+            showAlert = true;
+        });        
+    }
 </script>
 
 <div class="board">
@@ -226,11 +249,20 @@
             <p>{board.description}</p>
         </div>
     </header>
-    
+    {#if needsMigration}
+        {#if board && currentUser && (board.pubkey === currentUser.pubkey)}
+            <div class="migration-warning">
+                <p>This board is using an old data format and needs to be migrated to continue working properly.  You can't edit anything until then.</p>
+                <button on:click={doMigration}>Sign All Events and Migrate Board</button>
+            </div>
+        {/if}
+    {/if}
     <div class="columns">
+        
         {#if loading}
             <div class="loading">Loading cards...</div>
         {:else}
+       
             {#if showAddColumn}
                 <div class="add-column-form">
                     <input
@@ -276,6 +308,7 @@
             {/if}
         {/if}
     </div>
+    
 </div>
 
 {#if showAlert}
@@ -487,6 +520,52 @@
 
     .back-button:hover {
         background: #e4e6e8;
+    }
+
+    .migration-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffeeba;
+        color: #856404;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .migration-warning p {
+        margin: 0;
+    }
+
+    .migration-warning button {
+        background-color: #856404;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .migration-warning button:hover {
+        background-color: #6d5204;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .migration-warning {
+            background-color: #332b00;
+            border-color: #665500;
+            color: #ffd700;
+        }
+
+        .migration-warning button {
+            background-color: #665500;
+        }
+
+        .migration-warning button:hover {
+            background-color: #997d00;
+        }
     }
 
     @media (prefers-color-scheme: dark) {
