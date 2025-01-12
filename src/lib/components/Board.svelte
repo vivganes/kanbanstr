@@ -9,6 +9,7 @@
     import { ndkInstance } from '../ndk';
     import { push } from 'svelte-spa-router';
     import KanbanMigrationUtil from '../utils/MigrationUtilV1';
+    import MaintainersList from './MaintainersList.svelte';
 
     export let board: KanbanBoard;
     export let initialCardToOpen: { pubkey: string, dTag: string } | undefined = undefined;
@@ -28,6 +29,10 @@
     let currentUser: any = null;
     let loginMethod: string | null = null;
     let needsMigration:boolean = board.needsMigration || false;
+    let isEditingDetails = false;
+    let editedTitle = '';
+    let editedDescription = '';
+    let editedMaintainers: string[] = [];
 
     onMount(() => {
         const ndkUnsubscribe = ndkInstance.store.subscribe(state => {
@@ -218,6 +223,28 @@
             showAlert = true;
         });        
     }
+
+    function startEditingDetails() {
+        if (!canEdit) return;
+        editedTitle = board.title;
+        editedDescription = board.description;
+        editedMaintainers = board.maintainers || [];
+        isEditingDetails = true;
+    }
+
+    async function saveDetails() {
+        try {
+            await kanbanStore.updateBoard({
+                ...board,
+                title: editedTitle,
+                description: editedDescription,
+                maintainers: editedMaintainers
+            });
+            isEditingDetails = false;
+        } catch (error) {
+            errorMessage = error instanceof Error ? error.message : 'Failed to update board';
+        }
+    }
 </script>
 
 <div class="board">
@@ -243,10 +270,74 @@
             </button>
         </div>
         <div class="header-content">
-            <div class="title-section">
-                <h2>{board.title}</h2>                
-            </div>
-            <p>{board.description}</p>
+            {#if isEditingDetails}
+                <div class="edit-details-form">
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input 
+                            type="text" 
+                            bind:value={editedTitle}
+                            placeholder="Board Title"
+                        />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea 
+                            bind:value={editedDescription}
+                            placeholder="Board Description"
+                            rows="3"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Maintainers</label>
+                        <MaintainersList 
+                            maintainers={editedMaintainers}
+                            onChange={(newMaintainers) => editedMaintainers = newMaintainers}
+                        />
+                    </div>
+
+                    <div class="edit-actions">
+                        <button 
+                            class="cancel-btn"
+                            on:click={() => isEditingDetails = false}
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            class="save-btn"
+                            on:click={saveDetails}
+                        >
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            {:else}
+                <div class="title-section">
+                    <h2>{board.title}</h2>
+                    {#if canEdit}
+                        <button 
+                            class="edit-btn"
+                            on:click={startEditingDetails}
+                            title="Edit board details"
+                        >
+                            ✎
+                        </button>
+                    {/if}
+                </div>
+                <p>{board.description}</p>
+                {#if board.maintainers?.length > 0}
+                    <div class="maintainers-section">
+                        <h3>Board Maintainers</h3>
+                        <MaintainersList 
+                            maintainers={board.maintainers}
+                            onChange={() => {}}
+                            disabled={true}
+                        />
+                    </div>
+                {/if}
+            {/if}
         </div>
     </header>
     {#if needsMigration}
@@ -293,6 +384,7 @@
                     onDeleteColumn={() => handleDeleteColumn(column.name)}
                     isNoZapBoard={board.isNoZapBoard}
                     readOnly={!canEdit}
+                    {board}
                 />
             {/each}
             {#if showUnmappedColumn}
@@ -306,6 +398,7 @@
                     cardToOpen={cardToOpen}
                     isNoZapBoard={board.isNoZapBoard}
                     readOnly={!canEdit}
+                    {board}
                 />
             {/if}
         {/if}
@@ -578,6 +671,116 @@
 
         .back-button:hover {
             background: #2e2955;
+        }
+    }
+
+    .edit-details-form {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .edit-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    .edit-btn {
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        padding: 0.4rem;
+        border-radius: 4px;
+        margin-left: 0.5rem;
+        opacity: 0.7;
+    }
+
+    .edit-btn:hover {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .title-section {
+        display: flex;
+        align-items: center;
+    }
+
+    .maintainers-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #ddd;
+    }
+
+    .maintainers-section h3 {
+        font-size: 1rem;
+        margin: 0 0 0.5rem 0;
+        color: #666;
+    }
+
+    .cancel-btn,
+    .save-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        border: none;
+    }
+
+    .cancel-btn {
+        background: #f5f5f5;
+        color: #333;
+    }
+
+    .save-btn {
+        background: #0052cc;
+        color: white;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .edit-details-form {
+            background: #2d2d2d;
+            color: #fff;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            background: #1d1d1d;
+            border-color: #444;
+            color: #fff;
+        }
+
+        .maintainers-section {
+            border-top-color: #444;
+        }
+
+        .maintainers-section h3 {
+            color: #999;
+        }
+
+        .cancel-btn {
+            background: #1d1d1d;
+            color: #fff;
         }
     }
 </style> 

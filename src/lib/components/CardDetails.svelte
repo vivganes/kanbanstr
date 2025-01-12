@@ -66,10 +66,7 @@
         }
     });
 
-    $: canEditCard = (!readOnly) && (currentUser && 
-                 loginMethod !== 'readonly' && 
-                 loginMethod !== 'npub' && 
-                 currentUser.pubkey === card.pubkey);
+    $: canEditCard = !readOnly;
 
     $: canEditCard, changeMarkdownEditability();
 
@@ -150,12 +147,6 @@
             isSaving = false;
         }
     }
-
-    // Function to format pubkey for display
-    function formatPubkey(pubkey: string): string {
-        return pubkey.slice(0, 8) + '...' + pubkey.slice(-8);
-    }
-
 
     function changeMarkdownEditability() {
         if(editor){

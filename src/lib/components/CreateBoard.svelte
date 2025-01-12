@@ -1,11 +1,13 @@
 <script lang="ts">
     import { kanbanStore } from '../stores/kanban';
     import type { Column } from '../stores/kanban';
+    import MaintainersList from './MaintainersList.svelte';
 
     export let onClose: () => void;
 
     let title = '';
     let description = '';
+    let maintainers: string[] = [];
     let columns: Column[] = [
         { id: crypto.randomUUID(), name: 'To Do', order: 0 },
         { id: crypto.randomUUID(), name: 'In Progress', order: 1 },
@@ -17,7 +19,7 @@
     async function handleSubmit() {
         if (!title.trim()) return;
 
-        await kanbanStore.createBoard(title, description, columns);
+        await kanbanStore.createBoard(title, description, columns, maintainers);
         onClose();
     }
 
@@ -97,6 +99,14 @@
                     />
                     <button type="button" on:click={addColumn}>Add Column</button>
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label>Board Maintainers</label>
+                <MaintainersList 
+                    {maintainers} 
+                    onChange={(newMaintainers) => maintainers = newMaintainers} 
+                />
             </div>
 
             <div class="actions">

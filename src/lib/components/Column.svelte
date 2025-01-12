@@ -1,9 +1,10 @@
 <script lang="ts">
-    import type { Column, Card } from '../stores/kanban';
+    import type { Column, Card, KanbanBoard } from '../stores/kanban';
     import CardComponent from './Card.svelte';
     import CreateCard from './CreateCard.svelte';
     import { ndkInstance } from '../ndk';
     import { onMount } from 'svelte';
+    import type { NDKUser } from '@nostr-dev-kit/ndk';
 
     export let column: Column;
     export let cards: Card[];
@@ -15,12 +16,13 @@
     export let cardToOpen: Card | null = null;
     export let isNoZapBoard: boolean = false;
     export let onDeleteColumn: () => void;
+    export let board: KanbanBoard;
 
     let showCreateModal = false;
     let isDragOver = false;
     let dragOverIndex: number | null = null;
     let showDeleteButton = false;
-    let currentUser: any = null;
+    let currentUser: NDKUser | null = null;
     let loginMethod: string | null = null;
 
     onMount(() => {
@@ -33,9 +35,15 @@
     });
 
     $: canEditBoard = !readOnly &&  
-                 loginMethod !== 'readonly' && 
-                 loginMethod !== 'npub' && 
-                 (currentUser && currentUser.pubkey === boardPubkey);
+                     loginMethod !== 'readonly' && 
+                     loginMethod !== 'npub' && 
+                     currentUser && 
+                     currentUser.pubkey === board.pubkey;
+    
+    $: canMaintainBoard = loginMethod !== 'readonly' && 
+                         loginMethod !== 'npub' && 
+                         currentUser && 
+                         (currentUser.pubkey === board.pubkey || board.maintainers?.includes(currentUser.pubkey));
 
     function openCreateModal() {
         showCreateModal = true;
@@ -106,6 +114,13 @@
 >
     <header class="column-header">
         <h3>{column.name}</h3>
+        <!-- <div>
+            <p>{canEditBoard}</p>
+            <p>{currentUser?.pubkey}</p>
+            <p>{board.maintainers}</p>
+            <p>{canMaintainBoard}</p>
+        </div> -->
+        
         <div class="column-actions">
             {#if canEditBoard && !isUnmapped && showDeleteButton}
                 <button 
@@ -116,7 +131,7 @@
                     ×
                 </button>
             {/if}
-            {#if canEditBoard}
+            {#if canEditBoard || canMaintainBoard}
                 <button 
                     class="add-card-btn" 
                     on:click={openCreateModal}
@@ -141,7 +156,7 @@
                     {isUnmapped}
                     showDetails={cardToOpen?.id === card.id} 
                     {isNoZapBoard}     
-                    {readOnly}               
+                    readOnly={!canMaintainBoard}               
                 />
             </div>
         {/each}

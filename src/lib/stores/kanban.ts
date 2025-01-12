@@ -9,6 +9,7 @@ export interface KanbanBoard {
     description: string;
     columns: Column[];
     isNoZapBoard: boolean;
+    maintainers?: string[];
     needsMigration?: boolean;
 }
 
@@ -156,6 +157,11 @@ function createKanbanStore() {
                         descTag = ['description',eventContent.description];            
                     }
 
+                    // Get maintainers from p tags
+                    const maintainers = event.tags
+                        .filter(t => t[0] === 'p')
+                        .map(t => t[1]);
+
                     boards.push({
                         id: dTag ? dTag[1] : event.id,
                         pubkey: event.pubkey,
@@ -163,6 +169,7 @@ function createKanbanStore() {
                         description: descTag ? descTag[1] : '',
                         columns,
                         isNoZapBoard: hasNoZapTag,
+                        maintainers,
                         needsMigration: hasATags || contentHasColumns
                     });
                 } catch (error) {
@@ -368,22 +375,21 @@ function createKanbanStore() {
         }
     }
 
-    async function createBoard(title: string, description: string, columns: Column[]) {
+    async function createBoard(title: string, description: string, columns: Column[], maintainers: string[] = []) {
         try {
             const event = new NDKEvent(ndk);
             event.kind = 30301 as NDKKind;
             
-            // Generate a unique identifier for the board
             const boardId = crypto.randomUUID();
             
-            // Add tags according to new spec
             event.tags = [
                 ['d', boardId],
                 ['title', title],
                 ['description', description],
                 ['alt', `A board titled ${title}`],
-                // Add column tags
-                ...columns.map(col => ['col', col.id, col.name, col.order.toString()])
+                ...columns.map(col => ['col', col.id, col.name, col.order.toString()]),
+                // Add maintainer tags
+                ...maintainers.map(maintainer => ['p', maintainer])
             ];
 
             await event.publish();
@@ -647,6 +653,7 @@ function createKanbanStore() {
                     let descriptionTag = event.tags.find(t => t[0] === 'description');
                     const isNoZapBoardTag = event.tags.find(t => t[0] === 'nozap');
 
+
                     if(!migrationRequired){
                         // Get columns from col tags
                         const columns = event.tags
@@ -656,6 +663,12 @@ function createKanbanStore() {
                                 name: t[2],
                                 order: parseInt(t[3])
                             }));
+                        
+                   
+                        // Get maintainers from p tags
+                        const maintainers = event.tags
+                            .filter(t => t[0] === 'p')
+                            .map(t => t[1]);
 
                         board = {
                             id: dTag ? dTag[1] : event.id,
@@ -664,7 +677,8 @@ function createKanbanStore() {
                             description: descriptionTag ? descriptionTag[1] : '',
                             columns,
                             isNoZapBoard: isNoZapBoardTag ? true : false,
-                            needsMigration: migrationRequired
+                            needsMigration: migrationRequired,
+                            maintainers
                         };
                     } else {
                         const oldBoard = await loadLegacyBoardByPubkeyAndId(pubkey, boardId);
@@ -727,12 +741,10 @@ function createKanbanStore() {
                 ['description', board.description],
                 ['alt', `A board titled ${board.title}`],
                 // Add column tags
-                ...board.columns.map(col => ['col', col.id, col.name, col.order.toString()])
+                ...board.columns.map(col => ['col', col.id, col.name, col.order.toString()]),
+                // Add maintainer tags
+                ...(board.maintainers || []).map(maintainer => ['p', maintainer])
             ];
-
-            // Copy over any existing zap tags for maintainers
-            const existingZapTags = boardEvent.tags.filter(t => t[0] === 'zap');
-            newBoardEvent.tags.push(...existingZapTags);
 
             await newBoardEvent.publishReplaceable();
 
@@ -754,6 +766,16 @@ function createKanbanStore() {
         await loadBoards(true);
     }
 
+    function canEditCards(board: KanbanBoard, userPubkey: string): boolean {
+        if (!userPubkey) return false;
+        
+        // Board creator can always edit
+        if (board.pubkey === userPubkey) return true;
+        
+        // Check if user is a maintainer
+        return board.maintainers?.includes(userPubkey) || false;
+    }
+
     return {
         subscribe,
         init,
@@ -767,7 +789,8 @@ function createKanbanStore() {
         loadBoardByPubkeyAndId,
         updateBoard,
         updateCard,
-        hasNDK
+        hasNDK,
+        canEditCards
     };
 }
 

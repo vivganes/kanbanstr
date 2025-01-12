@@ -5,7 +5,6 @@
     import StarterKit from '@tiptap/starter-kit';
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy } from 'svelte';
-    import { ndkInstance } from '../ndk';
     import AlertModal from './AlertModal.svelte';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
 

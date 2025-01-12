@@ -90,6 +90,7 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 1rem;
+        margin-top: auto;
     }
 
     .loading, .error {
