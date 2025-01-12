@@ -10,6 +10,7 @@
     import { push } from 'svelte-spa-router';
     import KanbanMigrationUtil from '../utils/MigrationUtilV1';
     import MaintainersList from './MaintainersList.svelte';
+    import UserAvatar from './UserAvatar.svelte';
 
     export let board: KanbanBoard;
     export let initialCardToOpen: { pubkey: string, dTag: string } | undefined = undefined;
@@ -324,28 +325,28 @@
                 <div class="title-section">
                     <h2>{board.title}</h2>
                     {#if canEdit}
-                        <button 
-                            class="edit-btn"
-                            on:click={startEditingDetails}
-                            title="Edit board details"
-                        >
-                            ✎
-                        </button>
+                    <button 
+                        class="board-btn" 
+                        on:click={startEditingDetails}
+                        title="Edit board details"
+                    >
+                    ✎ Edit Board
+                    </button>                       
                     {/if}
                 </div>
-                <p>{board.description}</p>
-                {#if board.maintainers?.length > 0}
-                    <div class="maintainers-section">
-                        <h3>Board Maintainers</h3>
-                        <MaintainersList 
-                            maintainers={board.maintainers}
-                            onChange={() => {}}
-                            disabled={true}
-                        />
-                    </div>
-                {/if}
+                <p>{board.description}</p>                
             {/if}
         </div>
+        {#if !isEditingDetails && board.maintainers?.length > 0}
+            <div class="maintainers-display">
+                <span class="label">Maintainers:</span>
+                <div class="maintainers-avatars">
+                    {#each board.maintainers as maintainer}
+                        <UserAvatar pubkey={maintainer} size={28} />
+                    {/each}
+                </div>
+            </div>
+        {/if}
     </header>
     {#if needsMigration}
         {#if board && currentUser && (board.pubkey === currentUser.pubkey)}
@@ -389,6 +390,7 @@
                     {board}
                     isNoZapBoard={board.isNoZapBoard}
                     readOnly={!canEdit}
+                    cardToOpen={cardToOpen}
                 />
             {/each}
             
@@ -403,6 +405,7 @@
                     {board}
                     isNoZapBoard={board.isNoZapBoard}
                     readOnly={!canEdit}
+                    cardToOpen={cardToOpen}
                 />
             {/if}
         {/if}
@@ -683,6 +686,7 @@
         padding: 1rem;
         border-radius: 8px;
         margin-bottom: 1rem;
+        width:fit-content;
     }
 
     .form-group {
@@ -707,7 +711,7 @@
     .edit-actions {
         display: flex;
         gap: 1rem;
-        justify-content: flex-end;
+        justify-content: flex-start;
     }
 
     .edit-btn {
@@ -733,14 +737,13 @@
 
     .maintainers-section {
         margin-top: 1rem;
-        padding-top: 1rem;
-        border-top: 1px solid #ddd;
     }
 
-    .maintainers-section h3 {
+    .maintainers-section span {
         font-size: 1rem;
         margin: 0 0 0.5rem 0;
         color: #666;
+        font-weight: bold;
     }
 
     .cancel-btn,
@@ -778,13 +781,38 @@
             border-top-color: #444;
         }
 
-        .maintainers-section h3 {
+        .maintainers-section span {
             color: #999;
         }
 
         .cancel-btn {
             background: #1d1d1d;
             color: #fff;
+        }
+    }
+
+    .maintainers-display {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+
+    .maintainers-display .label {
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .maintainers-avatars {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .maintainers-display .label {
+            color: #999;
         }
     }
 </style> 

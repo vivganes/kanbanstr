@@ -55,9 +55,9 @@
     }
 </script>
 
-<div class="maintainers-list">
+<span class="maintainers-list">
     {#each maintainers as maintainer, i}
-        <div class="maintainer-item">
+        <span class="maintainer-item">
             {#await getUserDisplayName(maintainer)}
                 <span>Loading...</span>
             {:then name}
@@ -70,9 +70,9 @@
                     &times;
                 </button>
             {/if}
-        </div>
+        </span>
     {/each}
-</div>
+</span>
 
 {#if !disabled}
     <div class="add-maintainer">
@@ -107,13 +107,11 @@
     }
 
     .maintainer-item {
-        display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 0.5rem;
         background: #f5f5f5;
         border-radius: 4px;
         margin-bottom: 0.5rem;
+        margin-left:0.5rem;
     }
 
     .remove-btn {

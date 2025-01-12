@@ -7,6 +7,7 @@
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
     import { getUserDisplayName } from '../utils/user';
+    import UserAvatar from './UserAvatar.svelte';
 
     export let card: Card;
     export let boardId: string;
@@ -152,61 +153,32 @@
 
 <div 
     class="card" 
-    draggable="true"
+    draggable={!readOnly}
     on:click={openDetails}
     on:dragstart={handleDragStart}
 >
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
         <div class="card-actions">
-            <button 
-                class="permalink-button" 
-                on:click|stopPropagation={copyPermalink}
-                title="Copy permalink"
-            >
-                {#if copySuccess}
-                    ✓
-                {:else}
-                    🔗
-                {/if}
-            </button>
+            {#if card.assignees && card.assignees.length > 0}
+            {#each card.assignees as assignee}
+                        <UserAvatar pubkey={assignee} size={24} prefix="Assigned to: "/>
+            {/each}
+            {/if}
+            
         </div>
     </div>
 
     <div class="card-meta">
-        <div class="creator-info" title="Creator">
-            🪄 {creatorName}<a class="profile-link" href={`https://primal.net/p/${card.pubkey}`} target="_blank" title="Visit profile">🔗</a>
-        </div>
-        {#if lastUpdated}
+       {#if lastUpdated}
             <div class="last-updated" title={'Last updated at ' + fullDateTime}>
-            🕑 {lastUpdated}
+                <UserAvatar pubkey={card.pubkey} size={20} /> <span class="last-updated-time">{lastUpdated}</span>
             </div>
         {/if}
     </div>
 
     <div class="card-footer" on:click={openDetails}>
-        {#if hasAssigneesOrAttachments}            
-            <div class="footer-row">
-                {#if card.assignees && card.assignees.length > 0}
-                <div class="assignees">                        
-                        {#each card.assignees as assignee}
-                            {#await getUserDisplayName(assignee)}
-                                <span class="assignee">Loading...</span>
-                            {:then name}
-                                <span class="assignee">{name}</span>
-                            {:catch}
-                                <span class="assignee">Anonymous</span>
-                            {/await}
-                        {/each}
-                    </div>
-                {/if}
-                {#if card.attachments && card.attachments.length > 0}
-                    <div class="attachments">
-                        <span>📎 {card.attachments.length}</span>
-                    </div>
-                {/if}
-            </div>
-        {/if}
+        
         <div class="footer-row actions-row">
             {#if !isNoZapBoard}
             <div class="zap-container">
@@ -236,6 +208,18 @@
                 {/if}
             </div>
             {/if}
+            
+            <button 
+                class="permalink-button" 
+                on:click|stopPropagation={copyPermalink}
+                title="Copy permalink"
+            >
+                {#if copySuccess}
+                    ✓
+                {:else}
+                    🔗
+                {/if}
+            </button>
         </div>
     </div>
 </div>
@@ -298,7 +282,7 @@
 
     .footer-row {
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-start;
         align-items: center;
         gap: 0.5rem;
         width: 100%;
@@ -314,7 +298,6 @@
     .zap-container {
         display: flex;
         align-items: center;
-        width: 100%;
     }
 
     .zap-button {
@@ -331,9 +314,7 @@
     }
 
     @media (prefers-color-scheme: dark) {
-        .actions-row {
-            border-top-color: #333;
-        }
+        
 
         .zap-button {
             background: #2d2d2d;
@@ -342,9 +323,8 @@
 
     .assignees {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.25rem;
         flex-wrap: wrap;
-        max-width: 100%;
     }
 
     .assignee {
@@ -478,10 +458,17 @@
     }
 
     .last-updated {
+        display:flex;
+        gap:0.25rem;        
+        flex-wrap: wrap;
         font-size: 0.75rem;
         color: #666;
         margin-bottom: 0.5rem;
         font-style: italic;
+    }
+
+    .last-updated-time {
+        padding:0.1rem;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -508,4 +495,27 @@
             color: #999;
         }
     }
+
+    .creator-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-left: auto;
+    }
+
+    .assignees {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+    }
+
+    .card-footer {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    
 </style> 
