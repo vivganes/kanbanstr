@@ -8,14 +8,13 @@
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
     import UserAvatar from './UserAvatar.svelte';
     import { getUserDisplayName, getUserDisplayNameByNip05 } from '../utils/user';
-    import type { KanbanBoard } from '../stores/kanban';
     import ContextMenu from './ContextMenu.svelte';
     import { createEventDispatcher } from 'svelte';
     import BoardSelectorModal from './BoardSelectorModal.svelte';
     import { toastStore } from '../stores/toast';
-    import { getContext } from 'svelte';
     import { activeContextMenuId } from '../stores/contextMenu';
     
+
     const dispatch = createEventDispatcher(); 
 
     export let card: Card;
@@ -27,7 +26,6 @@
     export let readOnly: boolean = false;
 
     let copySuccess = false;
-    let copyTimeout: NodeJS.Timeout;
     let isZapping = false;
     let zapError: string | null = null;
     let showZapModal = false;
@@ -48,13 +46,14 @@
     let targetBoardId: string | null = null; 
     let showContextMenu = false;
     let contextMenuComponent: ContextMenu;
+    let activeMenu: string | null = null;
 
     const contextMenuItems = [
         { label: 'Copy Card', icon: 'content_copy', action: 'copy-card' },
         { label: 'Copy Permalink', icon: 'link', action: 'copy-permalink' }
     ];
 
-    onMount(async () => {
+    onMount(async () => {       
         try {
             const creator = await getUserWithProfileFromPubKey(card.pubkey);
             creatorName = creator?.profile?.displayName || 'Anonymous';
@@ -93,9 +92,9 @@
             boards = state.myBoards;
         });
 
-        return  () => {
-                unsubscribe();
-                kanbanUnsub();
+        return ()=> {
+            unsubscribe();
+            kanbanUnsub();
         };
     });
 
@@ -118,10 +117,16 @@
         loadZapAmount();
     }
 
-    async function copyPermalink(event: MouseEvent) {
+    async function getUserWithProfileFromPubKey(pubKey: string): Promise<NDKUser> {
+        const user = ndkInstance.ndk!.getUser({pubkey: pubKey});
+        await user.fetchProfile();
+        return user;
+    }
+
+    async function copyPermalink() {
         event.preventDefault();
         event.stopPropagation();
-        
+
         const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/${card.pubkey}/${card.dTag}`;
         
         try {

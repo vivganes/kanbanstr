@@ -360,7 +360,7 @@
                         <div class="empty-state">No boards available</div>
                     {:else}
                         <select bind:value={selectedBoardId}>
-                            <option value="">Select a board...</option>
+                            <option value="">Select a board</option>
                             {#each boards as board}
                                 {#if board.id !== boardId}
                                     <option value={board.id}>{board.title}</option>
