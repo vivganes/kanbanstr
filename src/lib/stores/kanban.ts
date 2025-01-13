@@ -791,6 +791,35 @@ function createKanbanStore() {
         return board.maintainers?.includes(userPubkey) || false;
     }
 
+    async function copyCardToBoard(card: Card, targetBoardId: string) {
+        try {
+            const boardFilter: NDKFilter = {
+                kinds: [30301 as NDKKind],
+                '#d': [targetBoardId]
+            };
+            const boardEvents = await ndk.fetchEvents(boardFilter);
+            const boardEvent = Array.from(boardEvents)[0];
+            
+            if (!boardEvent) {
+                throw new Error('Target board not found');
+            }
+
+            const aTag = `30301:${boardEvent.pubkey}:${targetBoardId}`;
+
+            const newCard = {
+                ...card,
+                status: 'To Do',
+                created_at: Date.now()
+            };
+
+            await createCard(aTag, newCard);
+        } catch (error) {
+            console.error('Failed to copy card:', error);
+            throw error;
+        }
+    }
+
+
     return {
         subscribe,
         init,
@@ -806,7 +835,8 @@ function createKanbanStore() {
         updateBoard,
         updateCard,
         hasNDK,
-        canEditCards
+        canEditCards,
+        copyCardToBoard
     };
 }
 

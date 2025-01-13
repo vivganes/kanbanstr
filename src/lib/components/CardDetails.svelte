@@ -7,6 +7,8 @@
     import { onMount, onDestroy } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
+    import BoardSelectorModal from './BoardSelectorModal.svelte';
+    import type { KanbanBoard } from '../stores/kanban';
 
     export let card: Card;
     export let boardId: string;
@@ -31,12 +33,33 @@
     let currentAssigneeDisplay: string | null = null;
     let isLoadingAssignee = false;
     let assigneeError: string | null = null;
+    let showBoardSelector = false;
+    let boards: KanbanBoard[] = [];
+    let selectedBoardId: string = '';
+    let loadingBoards = true;
+    let copySuccess = false;
+    let isCopying = false;
 
-    onMount(() => {
+    onMount(async () => {
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
         });
+
+        loadingBoards = true;
+        try {
+            if (!boards.length) {
+                await kanbanStore.loadMyBoards();
+            }
+            
+            const unsubKanban = kanbanStore.subscribe(state => {
+                boards = state.myBoards;
+                loadingBoards = false;
+            });
+        } catch (error) {
+            console.error('Failed to load boards:', error);
+            loadingBoards = false;
+        }
 
         editor = new Editor({
             element: editorElement,
@@ -55,9 +78,10 @@
             }            
         });
 
-        return {
-            unsubscribeNdk
-        }
+        return () => {
+                unsubscribeNdk();
+                unsubKanban();
+        };
     });
 
     onDestroy(() => {
@@ -148,11 +172,53 @@
         }
     }
 
+    async function handleCopyCard() {
+        if (!selectedBoardId) return;
+        try {
+            isCopying = true;
+            await kanbanStore.copyCardToBoard(card, selectedBoardId);
+            copySuccess = true;
+            selectedBoardId = '';
+            toastStore.addToast('Card copied successfully');
+            
+            setTimeout(() => {
+                copySuccess = false;
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to copy card:', error);
+            toastStore.addToast('Failed to copy card', 'error');
+        } finally {
+            isCopying = false;
+        }   
+    }
+
+    
+    function openBoardSelector() {
+        showBoardSelector = true;
+    }
+
+    function closeBoardSelector() {
+        showBoardSelector = false;
+    }
+
+    async function handleBoardSelect(id: string) {
+        if (!selectedBoardId) return;
+        try {
+            await kanbanStore.copyCardToBoard(card, selectedBoardId);
+            selectedBoardId = '';
+            var msg =`Successfully copied card to ${selectedBoardId}`
+            console.log(msg);
+        } catch (error) {
+            msg = `Failed to copy card to ${selectedBoardId}`
+            console.error(msg, error);
+        }
+    }
+
     function changeMarkdownEditability() {
         if(editor){
             editor.setEditable(canEditCard);
         }
-    }
+    } 
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -284,6 +350,41 @@
                 </div>
                 {/if}
             </div>
+
+            <div class="section">
+                <label>Copy to Board</label>
+                <div class="board-selector">
+                    {#if loadingBoards}
+                        <div class="loading-state">Loading boards...</div>
+                    {:else if boards.length === 0}
+                        <div class="empty-state">No boards available</div>
+                    {:else}
+                        <select bind:value={selectedBoardId}>
+                            <option value="">Select a board...</option>
+                            {#each boards as board}
+                                {#if board.id !== boardId}
+                                    <option value={board.id}>{board.title}</option>
+                                {/if}
+                            {/each}
+                        </select>
+                        <button 
+                            class="copy-button" 
+                            disabled={!selectedBoardId || isCopying || copySuccess}
+                            on:click={handleCopyCard}
+                        >
+                            {#if isCopying}
+                                <span class="material-icons">hourglass_top</span>
+                                Copying...
+                            {:else if copySuccess}
+                                <span class="material-icons success-icon">check_circle</span>
+                                Copied
+                            {:else}
+                                Copy
+                            {/if}
+                        </button>
+                    {/if}
+                </div>
+            </div>
         </div>
 
         <footer>
@@ -316,6 +417,11 @@
         justify-content: center;
         align-items: center;
         z-index: 1000;
+    }
+
+    textarea{
+        width: 100%;
+        height: 50px;
     }
 
     .modal {
@@ -627,5 +733,64 @@
 
     .validation-feedback.error {
         color: #dc3545;
+    }
+
+    .board-selector {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    select {
+        flex: 1;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+    }
+
+    .copy-button {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .success-icon {
+        color: #2ecc71;
+        font-size: 16px;
+    }
+
+    .copy-button.success {
+        background: #2ecc71;
+    }
+
+    .empty-state {
+        padding: 0.5rem;
+        color: #666;
+        font-style: italic;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        select {
+            background: #2d2d2d;
+            color: white;
+            border-color: #444;
+        }
+
+        .empty-state {
+            color: #ccc;
+        }
+    }
+
+    .loading-state {
+        padding: 0.5rem;
+        color: #666;
+        font-style: italic;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .loading-state {
+            color: #ccc;
+        }
     }
 </style> 

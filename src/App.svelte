@@ -7,6 +7,7 @@
   import BoardView from './lib/components/BoardView.svelte';
   import Settings from './lib/components/Settings.svelte';
   import ConsentModal from './lib/components/ConsentModal.svelte';
+  import ToastContainer from './lib/components/ToastContainer.svelte';
 
   let user = null;
   let loginMethod = null;
@@ -42,6 +43,7 @@
     <Router {routes} />
     {/if}
   {/if}
+  <ToastContainer />
 </main>
 
 <style>

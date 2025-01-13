@@ -7,6 +7,16 @@
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
     import UserAvatar from './UserAvatar.svelte';
+    import { getUserDisplayName, getUserDisplayNameByNip05 } from '../utils/user';
+    import type { KanbanBoard } from '../stores/kanban';
+    import ContextMenu from './ContextMenu.svelte';
+    import { createEventDispatcher } from 'svelte';
+    import BoardSelectorModal from './BoardSelectorModal.svelte';
+    import { toastStore } from '../stores/toast';
+    import { getContext } from 'svelte';
+    import { activeContextMenuId } from '../stores/contextMenu';
+    
+    const dispatch = createEventDispatcher(); 
 
     export let card: Card;
     export let boardId: string;
@@ -29,8 +39,30 @@
     let zapMethod = undefined;
     let canUserZap = false;
     let zapImpossibleReason: string|undefined = undefined;
+    let creatorName = 'Unknown';
+    let boards: KanbanBoard[] = []; 
+    let selectedBoardId: string | null = null;
+    let loadingBoards = false;
+    let menuPosition = { x: 0, y: 0 };
+    let showBoardSelector = false;
+    let targetBoardId: string | null = null; 
+    let showContextMenu = false;
+    let contextMenuComponent: ContextMenu;
 
-    onMount(() => {
+    const contextMenuItems = [
+        { label: 'Copy Card', icon: 'content_copy', action: 'copy-card' },
+        { label: 'Copy Permalink', icon: 'link', action: 'copy-permalink' }
+    ];
+
+    onMount(async () => {
+        try {
+            const creator = await getUserWithProfileFromPubKey(card.pubkey);
+            creatorName = creator?.profile?.displayName || 'Anonymous';
+        } catch (error) {
+            console.error('Failed to load creator info:', error);
+            creatorName = 'Anonymous';
+        }
+        
         const unsubscribe = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -57,8 +89,8 @@
             if (cardsWithSameDTag) {
                 let latestCard = cardsWithSameDTag.sort((a, b) => b.created_at - a.created_at)[0];
                 card = latestCard
-                console.log('Card updated:', card);
             }
+            boards = state.myBoards;
         });
 
         return  () => {
@@ -86,17 +118,23 @@
         loadZapAmount();
     }
 
-    function copyPermalink() {
-        if (copyTimeout) clearTimeout(copyTimeout);
-
+    async function copyPermalink(event: MouseEvent) {
+        event.preventDefault();
+        event.stopPropagation();
+        
         const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/${card.pubkey}/${card.dTag}`;
         
-        navigator.clipboard.writeText(permalink).then(() => {
-            copySuccess = true;
-            copyTimeout = setTimeout(() => {
-                copySuccess = false;
-            }, 2000);
-        });
+        try {
+            await navigator.clipboard.writeText(permalink);
+            contextMenuComponent.setItemSuccess('copy-permalink');
+            toastStore.addToast('Permalink copied to clipboard');
+            
+            setTimeout(() => {
+                closeMenu();
+            }, 500);
+        } catch (error) {
+            toastStore.addToast('Failed to copy permalink', 'error');
+        }
     }
 
     function openDetails() {
@@ -145,6 +183,60 @@
     onMount(() => {
         loadZapAmount();
     });
+
+    function openMenu(event: MouseEvent, cardId: string) {
+        event.preventDefault();
+        event.stopPropagation();
+        if ($activeContextMenuId) {
+            activeContextMenuId.set(null);
+        }
+        menuPosition = { x: event.clientX, y: event.clientY };
+        showContextMenu = true;
+    }
+
+    function closeMenu() {
+        showContextMenu = false;
+        activeContextMenuId.set(null);
+    }
+
+        function openBoardSelector() {
+        showBoardSelector = true;
+    }
+
+    function closeBoardSelector() {
+        showBoardSelector = false;
+    }
+
+    async function handleBoardSelect(event) {
+        const targetBoardId = event.detail;
+        
+        try {
+            await kanbanStore.copyCardToBoard(card, targetBoardId);
+            showBoardSelector = false;
+            toastStore.addToast('Card copied successfully');
+        } catch (error) {
+            console.error('Failed to copy card:', error);
+            toastStore.addToast('Failed to copy card', 'error');
+        }
+    }
+
+    async function copyCard(event: MouseEvent) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        showBoardSelector = true;
+        
+        closeMenu();
+    }
+
+    function handleMenuSelect(event) {
+        const action = event.detail;
+        if (action === 'copy-card') {
+            copyCard(event);
+        } else if (action === 'copy-permalink') {
+            copyPermalink(event);
+        }
+    }
 </script>
 
 <div 
@@ -152,6 +244,7 @@
     draggable={!readOnly}
     on:click={openDetails}
     on:dragstart={handleDragStart}
+    on:contextmenu={(e) => openMenu(e, card.id)}
 >
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
@@ -163,6 +256,10 @@
             {/if}
             
         </div>
+            <button on:click|preventDefault|stopPropagation={(e) => openMenu(e, card.id)}
+                class="more-options-btn">
+                <span class="material-icons">more_vert</span> 
+            </button>
     </div>
 
     <div class="card-meta">
@@ -204,20 +301,26 @@
                 {/if}
             </div>
             {/if}
-            
-            <button 
-                class="permalink-button" 
-                on:click|stopPropagation={copyPermalink}
-                title="Copy permalink"
-            >
-                {#if copySuccess}
-                    ✓
-                {:else}
-                    🔗
-                {/if}
-            </button>
         </div>
     </div>
+
+   {#if showContextMenu}
+        <ContextMenu
+            bind:this={contextMenuComponent}
+            id={card.id}
+            items={contextMenuItems}
+            position={menuPosition}
+            visible={showContextMenu}
+            on:select={handleMenuSelect}
+            on:close={closeMenu}
+        />
+    {/if}
+     <BoardSelectorModal
+                boards={boards.filter(board => board.id !== boardId)} 
+                visible={showBoardSelector}
+                onClose={closeBoardSelector}
+                on:select={handleBoardSelect}
+            />
 </div>
 
 {#if showDetails}
@@ -246,6 +349,7 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.12);
         cursor: pointer;
         user-select: none;
+        position: relative;
     }
 
     .card:hover {
@@ -514,4 +618,72 @@
     }
 
     
+    .more-options-btn {
+        background: none;
+        color:black;
+        border: none;
+        padding: 0.2rem;
+        cursor: pointer;
+        font-size: 1rem;
+        opacity: 0.6;
+        border-radius: 4px;
+        transition: opacity 0.2s, background-color 0.2s;
+    }
+
+    .more-options-btn:hover {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        z-index: 10;
+        width: 200px;
+    }
+
+    .board-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .copy-btn {
+        padding: 0.5rem 1rem;
+        background: #0052cc;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+    }
+
+    
+    .context-menu {
+        position: absolute;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        z-index: 10;
+    }
+
+    .context-menu-item {
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+    }
+
+    .context-menu-item:hover {
+        background: #f5f5f5;
+    }
+
+    .context-menu {
+        top: var(--context-menu-top);
+        left: var(--context-menu-left);
+    }
+
 </style> 
