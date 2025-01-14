@@ -7,15 +7,12 @@
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
     import UserAvatar from './UserAvatar.svelte';
-    import { getUserDisplayName, getUserDisplayNameByNip05 } from '../utils/user';
     import ContextMenu from './ContextMenu.svelte';
-    import { createEventDispatcher } from 'svelte';
     import BoardSelectorModal from './BoardSelectorModal.svelte';
     import { toastStore } from '../stores/toast';
     import { activeContextMenuId } from '../stores/contextMenu';
     
 
-    const dispatch = createEventDispatcher(); 
 
     export let card: Card;
     export let boardId: string;
@@ -49,8 +46,9 @@
     let activeMenu: string | null = null;
 
     const contextMenuItems = [
-        { label: 'Copy Card', icon: 'content_copy', action: 'copy-card' },
-        { label: 'Copy Permalink', icon: 'link', action: 'copy-permalink' }
+        { label: 'Clone as new card', icon: 'content_copy', action: 'clone-as-new-card' },
+        //TODO: { label: 'Track in my board', icon: 'add', action: 'track-card' },
+        { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' }
     ];
 
     onMount(async () => {       
@@ -123,7 +121,7 @@
         return user;
     }
 
-    async function copyPermalink() {
+    async function copyPermalink(event) {
         event.preventDefault();
         event.stopPropagation();
 
@@ -216,16 +214,16 @@
         const targetBoardId = event.detail;
         
         try {
-            await kanbanStore.copyCardToBoard(card, targetBoardId);
+            await kanbanStore.cloneCardToBoard(card, targetBoardId);
             showBoardSelector = false;
-            toastStore.addToast('Card copied successfully');
+            toastStore.addToast('Card cloned successfully as a new card');
         } catch (error) {
             console.error('Failed to copy card:', error);
-            toastStore.addToast('Failed to copy card', 'error');
+            toastStore.addToast('Failed to clone card', 'error');
         }
     }
 
-    async function copyCard(event: MouseEvent) {
+    async function cloneAsNewCard(event: MouseEvent) {
         event.preventDefault();
         event.stopPropagation();
         
@@ -236,8 +234,8 @@
 
     function handleMenuSelect(event) {
         const action = event.detail;
-        if (action === 'copy-card') {
-            copyCard(event);
+        if (action === 'clone-as-new-card') {
+            cloneAsNewCard(event);
         } else if (action === 'copy-permalink') {
             copyPermalink(event);
         }
@@ -638,57 +636,6 @@
     .more-options-btn:hover {
         opacity: 1;
         background: rgba(0, 0, 0, 0.05);
-    }
-
-    .dropdown-menu {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        z-index: 10;
-        width: 200px;
-    }
-
-    .board-list {
-        max-height: 200px;
-        overflow-y: auto;
-    }
-
-    .copy-btn {
-        padding: 0.5rem 1rem;
-        background: #0052cc;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        width: 100%;
-    }
-
-    
-    .context-menu {
-        position: absolute;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        z-index: 10;
-    }
-
-    .context-menu-item {
-        padding: 0.5rem 1rem;
-        cursor: pointer;
-    }
-
-    .context-menu-item:hover {
-        background: #f5f5f5;
-    }
-
-    .context-menu {
-        top: var(--context-menu-top);
-        left: var(--context-menu-left);
     }
 
 </style> 

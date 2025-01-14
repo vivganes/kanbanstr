@@ -24,7 +24,7 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
+  display: block;
   place-items: center;
   min-width: 320px;
   min-height: 90vh;
@@ -43,6 +43,7 @@ h1 {
   margin: 0 auto;
   padding: 1rem;
   text-align: left;
+  height: 85vh; /* Add this line */
 }
 
 button {

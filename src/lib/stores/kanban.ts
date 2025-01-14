@@ -31,7 +31,7 @@ export interface Card {
     pubkey: string;
     title: string;
     description: string;
-    status: string;
+    status?: string;
     order: number;
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
@@ -450,12 +450,15 @@ function createKanbanStore() {
                 ['d', cardIdentifier],
                 ['title', card.title],
                 ['description', card.description],
-                ['alt', `A card titled ${card.title}`],
-                ['s', card.status], // Status tag
+                ['alt', `A card titled ${card.title}`],                
                 ['rank', (card.order).toString()], // Rank tag for ordering
                 // Add board reference
                 ['a', aTagPointingToBoard]
             ];
+            
+            if(card.status){
+                cardEvent.tags.push(['s', card.status]);
+            }
 
             // Add attachment tags
             if (card.attachments && card.attachments.length > 0) {
@@ -791,7 +794,7 @@ function createKanbanStore() {
         return board.maintainers?.includes(userPubkey) || false;
     }
 
-    async function copyCardToBoard(card: Card, targetBoardId: string) {
+    async function cloneCardToBoard(card: Card, targetBoardId: string) {
         try {
             const boardFilter: NDKFilter = {
                 kinds: [30301 as NDKKind],
@@ -808,13 +811,12 @@ function createKanbanStore() {
 
             const newCard = {
                 ...card,
-                status: 'To Do',
-                created_at: Date.now()
+                status: undefined
             };
 
             await createCard(aTag, newCard);
         } catch (error) {
-            console.error('Failed to copy card:', error);
+            console.error('Failed to clone card:', error);
             throw error;
         }
     }
@@ -836,7 +838,7 @@ function createKanbanStore() {
         updateCard,
         hasNDK,
         canEditCards,
-        copyCardToBoard
+        cloneCardToBoard
     };
 }
 
