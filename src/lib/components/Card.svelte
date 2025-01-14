@@ -7,6 +7,12 @@
     import { formatTimeAgo, formatDateTime } from '../utils/date';
     import type { NDKKind, NDKUser } from '@nostr-dev-kit/ndk';
     import UserAvatar from './UserAvatar.svelte';
+    import ContextMenu from './ContextMenu.svelte';
+    import BoardSelectorModal from './BoardSelectorModal.svelte';
+    import { toastStore } from '../stores/toast';
+    import { activeContextMenuId } from '../stores/contextMenu';
+    
+
 
     export let card: Card;
     export let boardId: string;
@@ -17,7 +23,6 @@
     export let readOnly: boolean = false;
 
     let copySuccess = false;
-    let copyTimeout: NodeJS.Timeout;
     let isZapping = false;
     let zapError: string | null = null;
     let showZapModal = false;
@@ -29,8 +34,32 @@
     let zapMethod = undefined;
     let canUserZap = false;
     let zapImpossibleReason: string|undefined = undefined;
+    let creatorName = 'Unknown';
+    let boards: KanbanBoard[] = []; 
+    let selectedBoardId: string | null = null;
+    let loadingBoards = false;
+    let menuPosition = { x: 0, y: 0 };
+    let showBoardSelector = false;
+    let targetBoardId: string | null = null; 
+    let showContextMenu = false;
+    let contextMenuComponent: ContextMenu;
+    let activeMenu: string | null = null;
 
-    onMount(() => {
+    const contextMenuItems = [
+        { label: 'Clone as new card', icon: 'content_copy', action: 'clone-as-new-card' },
+        //TODO: { label: 'Track in my board', icon: 'add', action: 'track-card' },
+        { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' }
+    ];
+
+    onMount(async () => {       
+        try {
+            const creator = await getUserWithProfileFromPubKey(card.pubkey);
+            creatorName = creator?.profile?.displayName || 'Anonymous';
+        } catch (error) {
+            console.error('Failed to load creator info:', error);
+            creatorName = 'Anonymous';
+        }
+        
         const unsubscribe = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -57,13 +86,13 @@
             if (cardsWithSameDTag) {
                 let latestCard = cardsWithSameDTag.sort((a, b) => b.created_at - a.created_at)[0];
                 card = latestCard
-                console.log('Card updated:', card);
             }
+            boards = state.myBoards;
         });
 
-        return  () => {
-                unsubscribe();
-                kanbanUnsub();
+        return ()=> {
+            unsubscribe();
+            kanbanUnsub();
         };
     });
 
@@ -86,17 +115,29 @@
         loadZapAmount();
     }
 
-    function copyPermalink() {
-        if (copyTimeout) clearTimeout(copyTimeout);
+    async function getUserWithProfileFromPubKey(pubKey: string): Promise<NDKUser> {
+        const user = ndkInstance.ndk!.getUser({pubkey: pubKey});
+        await user.fetchProfile();
+        return user;
+    }
+
+    async function copyPermalink(event) {
+        event.preventDefault();
+        event.stopPropagation();
 
         const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/${card.pubkey}/${card.dTag}`;
         
-        navigator.clipboard.writeText(permalink).then(() => {
-            copySuccess = true;
-            copyTimeout = setTimeout(() => {
-                copySuccess = false;
-            }, 2000);
-        });
+        try {
+            await navigator.clipboard.writeText(permalink);
+            contextMenuComponent.setItemSuccess('copy-permalink');
+            toastStore.addToast('Permalink copied to clipboard');
+            
+            setTimeout(() => {
+                closeMenu();
+            }, 500);
+        } catch (error) {
+            toastStore.addToast('Failed to copy permalink', 'error');
+        }
     }
 
     function openDetails() {
@@ -145,6 +186,60 @@
     onMount(() => {
         loadZapAmount();
     });
+
+    function openMenu(event: MouseEvent, cardId: string) {
+        event.preventDefault();
+        event.stopPropagation();
+        if ($activeContextMenuId) {
+            activeContextMenuId.set(null);
+        }
+        menuPosition = { x: event.clientX, y: event.clientY };
+        showContextMenu = true;
+    }
+
+    function closeMenu() {
+        showContextMenu = false;
+        activeContextMenuId.set(null);
+    }
+
+        function openBoardSelector() {
+        showBoardSelector = true;
+    }
+
+    function closeBoardSelector() {
+        showBoardSelector = false;
+    }
+
+    async function handleBoardSelect(event) {
+        const targetBoardId = event.detail;
+        
+        try {
+            await kanbanStore.cloneCardToBoard(card, targetBoardId);
+            showBoardSelector = false;
+            toastStore.addToast('Card cloned successfully as a new card');
+        } catch (error) {
+            console.error('Failed to copy card:', error);
+            toastStore.addToast('Failed to clone card', 'error');
+        }
+    }
+
+    async function cloneAsNewCard(event: MouseEvent) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        showBoardSelector = true;
+        
+        closeMenu();
+    }
+
+    function handleMenuSelect(event) {
+        const action = event.detail;
+        if (action === 'clone-as-new-card') {
+            cloneAsNewCard(event);
+        } else if (action === 'copy-permalink') {
+            copyPermalink(event);
+        }
+    }
 </script>
 
 <div 
@@ -152,6 +247,7 @@
     draggable={!readOnly}
     on:click={openDetails}
     on:dragstart={handleDragStart}
+    on:contextmenu={(e) => openMenu(e, card.id)}
 >
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
@@ -163,6 +259,10 @@
             {/if}
             
         </div>
+            <button on:click|preventDefault|stopPropagation={(e) => openMenu(e, card.id)}
+                class="more-options-btn">
+                <span class="material-icons">more_vert</span> 
+            </button>
     </div>
 
     <div class="card-meta">
@@ -204,20 +304,26 @@
                 {/if}
             </div>
             {/if}
-            
-            <button 
-                class="permalink-button" 
-                on:click|stopPropagation={copyPermalink}
-                title="Copy permalink"
-            >
-                {#if copySuccess}
-                    ✓
-                {:else}
-                    🔗
-                {/if}
-            </button>
         </div>
     </div>
+
+   {#if showContextMenu}
+        <ContextMenu
+            bind:this={contextMenuComponent}
+            id={card.id}
+            items={contextMenuItems}
+            position={menuPosition}
+            visible={showContextMenu}
+            on:select={handleMenuSelect}
+            on:close={closeMenu}
+        />
+    {/if}
+     <BoardSelectorModal
+                boards={boards.filter(board => board.id !== boardId)} 
+                visible={showBoardSelector}
+                onClose={closeBoardSelector}
+                on:select={handleBoardSelect}
+            />
 </div>
 
 {#if showDetails}
@@ -246,6 +352,7 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.12);
         cursor: pointer;
         user-select: none;
+        position: relative;
     }
 
     .card:hover {
@@ -514,4 +621,21 @@
     }
 
     
+    .more-options-btn {
+        background: none;
+        color:black;
+        border: none;
+        padding: 0.2rem;
+        cursor: pointer;
+        font-size: 1rem;
+        opacity: 0.6;
+        border-radius: 4px;
+        transition: opacity 0.2s, background-color 0.2s;
+    }
+
+    .more-options-btn:hover {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.05);
+    }
+
 </style> 

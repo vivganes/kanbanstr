@@ -31,7 +31,7 @@ export interface Card {
     pubkey: string;
     title: string;
     description: string;
-    status: string;
+    status?: string;
     order: number;
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
@@ -450,12 +450,15 @@ function createKanbanStore() {
                 ['d', cardIdentifier],
                 ['title', card.title],
                 ['description', card.description],
-                ['alt', `A card titled ${card.title}`],
-                ['s', card.status], // Status tag
+                ['alt', `A card titled ${card.title}`],                
                 ['rank', (card.order).toString()], // Rank tag for ordering
                 // Add board reference
                 ['a', aTagPointingToBoard]
             ];
+            
+            if(card.status){
+                cardEvent.tags.push(['s', card.status]);
+            }
 
             // Add attachment tags
             if (card.attachments && card.attachments.length > 0) {
@@ -791,6 +794,34 @@ function createKanbanStore() {
         return board.maintainers?.includes(userPubkey) || false;
     }
 
+    async function cloneCardToBoard(card: Card, targetBoardId: string) {
+        try {
+            const boardFilter: NDKFilter = {
+                kinds: [30301 as NDKKind],
+                '#d': [targetBoardId]
+            };
+            const boardEvents = await ndk.fetchEvents(boardFilter);
+            const boardEvent = Array.from(boardEvents)[0];
+            
+            if (!boardEvent) {
+                throw new Error('Target board not found');
+            }
+
+            const aTag = `30301:${boardEvent.pubkey}:${targetBoardId}`;
+
+            const newCard = {
+                ...card,
+                status: undefined
+            };
+
+            await createCard(aTag, newCard);
+        } catch (error) {
+            console.error('Failed to clone card:', error);
+            throw error;
+        }
+    }
+
+
     return {
         subscribe,
         init,
@@ -806,7 +837,8 @@ function createKanbanStore() {
         updateBoard,
         updateCard,
         hasNDK,
-        canEditCards
+        canEditCards,
+        cloneCardToBoard
     };
 }
 
