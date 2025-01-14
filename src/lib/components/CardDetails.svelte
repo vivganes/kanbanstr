@@ -7,8 +7,8 @@
     import { onMount, onDestroy } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
-    import BoardSelectorModal from './BoardSelectorModal.svelte';
     import type { KanbanBoard } from '../stores/kanban';
+    import { toastStore } from '../stores/toast';
 
     export let card: Card;
     export let boardId: string;
@@ -37,14 +37,15 @@
     let boards: KanbanBoard[] = [];
     let selectedBoardId: string = '';
     let loadingBoards = true;
-    let copySuccess = false;
-    let isCopying = false;
+    let cloneSuccess = false;
+    let isCloning = false;
 
     onMount(async () => {
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
         });
+        let unsubKanban = undefined;
 
         loadingBoards = true;
         try {
@@ -52,7 +53,7 @@
                 await kanbanStore.loadMyBoards();
             }
             
-            const unsubKanban = kanbanStore.subscribe(state => {
+            unsubKanban = kanbanStore.subscribe(state => {
                 boards = state.myBoards;
                 loadingBoards = false;
             });
@@ -80,7 +81,9 @@
 
         return () => {
                 unsubscribeNdk();
-                unsubKanban();
+                if(unsubKanban){
+                    unsubKanban();
+                }
         };
     });
 
@@ -157,7 +160,7 @@
             await kanbanStore.updateCard(boardId, {
                 ...card,
                 title: title.trim(),
-                status: status.trim(),
+                status: status?.trim(),
                 description: description.trim(),
                 attachments,
                 assignees
@@ -172,23 +175,23 @@
         }
     }
 
-    async function handleCopyCard() {
+    async function handleCloneCard() {
         if (!selectedBoardId) return;
         try {
-            isCopying = true;
-            await kanbanStore.copyCardToBoard(card, selectedBoardId);
-            copySuccess = true;
+            isCloning = true;
+            await kanbanStore.cloneCardToBoard(card, selectedBoardId);
+            cloneSuccess = true;
             selectedBoardId = '';
-            toastStore.addToast('Card copied successfully');
+            toastStore.addToast('Card cloned successfully');
             
             setTimeout(() => {
-                copySuccess = false;
+                cloneSuccess = false;
             }, 2000);
         } catch (error) {
-            console.error('Failed to copy card:', error);
-            toastStore.addToast('Failed to copy card', 'error');
+            console.error('Failed to clone card:', error);
+            toastStore.addToast('Failed to clone card', 'error');
         } finally {
-            isCopying = false;
+            isCloning = false;
         }   
     }
 
@@ -204,12 +207,12 @@
     async function handleBoardSelect(id: string) {
         if (!selectedBoardId) return;
         try {
-            await kanbanStore.copyCardToBoard(card, selectedBoardId);
+            await kanbanStore.cloneCardToBoard(card, selectedBoardId);
             selectedBoardId = '';
-            var msg =`Successfully copied card to ${selectedBoardId}`
+            var msg =`Successfully cloned card to ${selectedBoardId}`
             console.log(msg);
         } catch (error) {
-            msg = `Failed to copy card to ${selectedBoardId}`
+            msg = `Failed to clone card to ${selectedBoardId}`
             console.error(msg, error);
         }
     }
@@ -352,7 +355,7 @@
             </div>
 
             <div class="section">
-                <label>Copy to Board</label>
+                <label>Clone to Board</label>
                 <div class="board-selector">
                     {#if loadingBoards}
                         <div class="loading-state">Loading boards...</div>
@@ -362,24 +365,22 @@
                         <select bind:value={selectedBoardId}>
                             <option value="">Select a board</option>
                             {#each boards as board}
-                                {#if board.id !== boardId}
                                     <option value={board.id}>{board.title}</option>
-                                {/if}
                             {/each}
                         </select>
                         <button 
                             class="copy-button" 
-                            disabled={!selectedBoardId || isCopying || copySuccess}
-                            on:click={handleCopyCard}
+                            disabled={!selectedBoardId || isCloning || cloneSuccess}
+                            on:click={handleCloneCard}
                         >
-                            {#if isCopying}
+                            {#if isCloning}
                                 <span class="material-icons">hourglass_top</span>
-                                Copying...
-                            {:else if copySuccess}
+                                Cloning...
+                            {:else if cloneSuccess}
                                 <span class="material-icons success-icon">check_circle</span>
-                                Copied
+                                Cloned
                             {:else}
-                                Copy
+                                Clone as new card
                             {/if}
                         </button>
                     {/if}
@@ -758,10 +759,6 @@
     .success-icon {
         color: #2ecc71;
         font-size: 16px;
-    }
-
-    .copy-button.success {
-        background: #2ecc71;
     }
 
     .empty-state {
