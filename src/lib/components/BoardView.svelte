@@ -9,7 +9,6 @@
     export let params: { 
         id: string, 
         pubkey: string,
-        cardpubkey?: string,
         cardDTag?: string 
     };
     
@@ -17,7 +16,6 @@
     let loading = true;
     let error: string | null = null;
     let initialCardToOpen = params.cardDTag ? {
-        pubkey: params.cardpubkey!,
         dTag: params.cardDTag
     } : undefined;
 

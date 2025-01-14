@@ -17,8 +17,7 @@
   const routes = {
     '/': BoardsList,
     '/board/:pubkey/:id': BoardView,
-    '/board/:pubkey/:id/:cardpubkey/:cardDTag': BoardView,
-    '/settings': Settings
+    '/board/:pubkey/:id/card/:cardDTag': BoardView, 
   };
 
   onMount(() => {

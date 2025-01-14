@@ -13,7 +13,7 @@
     import UserAvatar from './UserAvatar.svelte';
 
     export let board: KanbanBoard;
-    export let initialCardToOpen: { pubkey: string, dTag: string } | undefined = undefined;
+    export let initialCardToOpen: { dTag: string } | undefined = undefined;
     
     let cards: Card[] = [];
     let loading = true;
@@ -52,8 +52,7 @@
             }
             cards = state.cards.get(board.id) || [];
             if (initialCardToOpen && !cardToOpen) {
-                const card = cards.find(c => 
-                    c.pubkey === initialCardToOpen.pubkey && 
+                const card = cards.find(c =>                      
                     c.dTag === initialCardToOpen.dTag
                 );
                 if (card) {

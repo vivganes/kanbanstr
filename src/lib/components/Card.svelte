@@ -125,7 +125,7 @@
         event.preventDefault();
         event.stopPropagation();
 
-        const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/${card.pubkey}/${card.dTag}`;
+        const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/card/${card.dTag}`;
         
         try {
             await navigator.clipboard.writeText(permalink);
