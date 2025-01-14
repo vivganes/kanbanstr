@@ -26,7 +26,7 @@
         });
     
         return () => {
-            unsubscribe
+            unsubscribe();
         };
     });
 

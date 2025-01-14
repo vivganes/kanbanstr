@@ -18,6 +18,7 @@
     '/': BoardsList,
     '/board/:pubkey/:id': BoardView,
     '/board/:pubkey/:id/card/:cardDTag': BoardView, 
+    '/settings': Settings
   };
 
   onMount(() => {
