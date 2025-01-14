@@ -7,18 +7,22 @@
     export let onClose: () => void;
 
     const dispatch = createEventDispatcher();
-    let boards: KanbanBoard[] = [];
+    let boardsICanCreateCardsIn: KanbanBoard[] = [];
     let loading = true;
 
     onMount(async () => {
         loading = true;
         try {
-            if (!boards.length) {
+            if (!boardsICanCreateCardsIn.length) {
                 await kanbanStore.loadMyBoards();
+                await kanbanStore.loadMaintainingBoards();
             }
             
             const unsubscribe = kanbanStore.subscribe(state => {
-                boards = state.myBoards;
+                boardsICanCreateCardsIn = [...(new Set([
+                    ...state.myBoards,
+                    ...state.maintainingBoards
+                ]))]; //deduped boards from myBoards and maintainingBoards
                 loading = false;
             });
 
@@ -49,10 +53,10 @@
             <div class="board-list">
                 {#if loading}
                     <div class="loading">Loading boards...</div>
-                {:else if boards.length === 0}
+                {:else if boardsICanCreateCardsIn.length === 0}
                     <div class="empty-state">No boards available</div>
                 {:else}
-                    {#each boards as board}
+                    {#each boardsICanCreateCardsIn as board}
                         <button 
                             class="board-item" 
                             on:click={() => selectBoard(board.id)}

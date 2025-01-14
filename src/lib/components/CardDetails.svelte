@@ -34,7 +34,7 @@
     let isLoadingAssignee = false;
     let assigneeError: string | null = null;
     let showBoardSelector = false;
-    let boards: KanbanBoard[] = [];
+    let boardsICanCreateCardsIn: KanbanBoard[] = [];
     let selectedBoardId: string = '';
     let loadingBoards = true;
     let cloneSuccess = false;
@@ -49,12 +49,16 @@
 
         loadingBoards = true;
         try {
-            if (!boards.length) {
+            if (boardsICanCreateCardsIn.length === 0) {
                 await kanbanStore.loadMyBoards();
+                await kanbanStore.loadMaintainingBoards();
             }
             
             unsubKanban = kanbanStore.subscribe(state => {
-                boards = state.myBoards;
+                boardsICanCreateCardsIn = [...(new Set([
+                    ...state.myBoards,
+                    ...state.maintainingBoards
+                ]))]; //deduped boards from myBoards and maintainingBoards
                 loadingBoards = false;
             });
         } catch (error) {
@@ -359,12 +363,12 @@
                 <div class="board-selector">
                     {#if loadingBoards}
                         <div class="loading-state">Loading boards...</div>
-                    {:else if boards.length === 0}
+                    {:else if boardsICanCreateCardsIn.length === 0}
                         <div class="empty-state">No boards available</div>
                     {:else}
                         <select bind:value={selectedBoardId}>
                             <option value="">Select a board</option>
-                            {#each boards as board}
+                            {#each boardsICanCreateCardsIn as board}
                                     <option value={board.id}>{board.title}</option>
                             {/each}
                         </select>

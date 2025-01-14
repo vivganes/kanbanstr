@@ -36,14 +36,10 @@
     let zapImpossibleReason: string|undefined = undefined;
     let creatorName = 'Unknown';
     let boards: KanbanBoard[] = []; 
-    let selectedBoardId: string | null = null;
-    let loadingBoards = false;
     let menuPosition = { x: 0, y: 0 };
-    let showBoardSelector = false;
-    let targetBoardId: string | null = null; 
+    let showBoardSelector = false; 
     let showContextMenu = false;
     let contextMenuComponent: ContextMenu;
-    let activeMenu: string | null = null;
 
     const contextMenuItems = [
         { label: 'Clone as new card', icon: 'content_copy', action: 'clone-as-new-card' },
@@ -319,7 +315,6 @@
         />
     {/if}
      <BoardSelectorModal
-                boards={boards.filter(board => board.id !== boardId)} 
                 visible={showBoardSelector}
                 onClose={closeBoardSelector}
                 on:select={handleBoardSelect}
@@ -362,10 +357,6 @@
     .card:active {
         cursor: grabbing;
     }
-    
-    .profile-link:hover{
-        font-weight: bold;
-    }
 
     h4 {
         margin: 0 0 0.5rem 0;
@@ -395,9 +386,6 @@
         margin-bottom: 0.5rem;
     }
 
-    .actions-row {
-    }
-
     .zap-container {
         display: flex;
         align-items: center;
@@ -424,34 +412,6 @@
         }
     }
 
-    .assignees {
-        display: flex;
-        gap: 0.25rem;
-        flex-wrap: wrap;
-    }
-
-    .assignee {
-        background: #e3e9f3;
-        padding: 0.2rem 0.4rem;
-        border-radius: 3px;
-        font-size: 0.75rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 150px;  /* Limit width of each assignee tag */
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .assignee {
-            background: #2d2d2d;
-            color: #e3e9f3;
-        }
-    }
-
-    .attachments {
-        white-space: nowrap;
-    }
-
     .card-header {
         display: flex;
         justify-content: space-between;
@@ -464,22 +424,6 @@
         margin: 0 0 0.5rem 0;
         text-align: left;
         cursor: pointer;
-    }
-
-    .permalink-button {
-        background: none;
-        border: none;
-        padding: 0.2rem;
-        cursor: pointer;
-        font-size: 1rem;
-        opacity: 0.6;
-        border-radius: 4px;
-        transition: opacity 0.2s, background-color 0.2s;
-    }
-
-    .permalink-button:hover {
-        opacity: 1;
-        background: rgba(0, 0, 0, 0.05);
     }
 
     .card-actions {
@@ -542,10 +486,6 @@
 
     @media (prefers-color-scheme: dark) {
 
-        .permalink-button{
-            color:#333;
-        }
-
 
         .zap-button:hover:not(:disabled) {
             background: rgba(255, 215, 0, 0.2);
@@ -588,30 +528,11 @@
 
     }
 
-    .creator-info {
-        font-style: italic;
-        margin-bottom: 0.25rem;
-    }
-
     @media (prefers-color-scheme: dark) {
         .card-meta {
             color: #999;
         }
     }
-
-    .creator-info {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-left: auto;
-    }
-
-    .assignees {
-        display: flex;
-        gap: 0.25rem;
-        flex-wrap: wrap;
-    }
-
     .card-footer {
         margin-top: 0.5rem;
         padding-top: 0.5rem;
