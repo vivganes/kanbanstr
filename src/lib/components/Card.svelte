@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { ndkInstance, formatAmount } from '../ndk';
-    import { kanbanStore, type Card } from '../stores/kanban';
+    import { kanbanStore, type Card, type KanbanBoard } from '../stores/kanban';
     import CardDetails from './CardDetails.svelte';
     import ZapModal from './ZapModal.svelte';
     import { formatTimeAgo, formatDateTime } from '../utils/date';
@@ -12,8 +12,6 @@
     import { toastStore } from '../stores/toast';
     import { activeContextMenuId } from '../stores/contextMenu';
     
-
-
     export let card: Card;
     export let boardId: string;
     export let boardPubkey: string;
@@ -22,7 +20,6 @@
     export let isNoZapBoard: boolean = false;
     export let readOnly: boolean = false;
 
-    let copySuccess = false;
     let isZapping = false;
     let zapError: string | null = null;
     let showZapModal = false;
@@ -37,17 +34,18 @@
     let creatorName = 'Unknown';
     let boards: KanbanBoard[] = []; 
     let menuPosition = { x: 0, y: 0 };
-    let showBoardSelector = false; 
+    let showBoardSelectorForCloning = false; 
+    let showBoardSelectorForTrackingInDifferentBoard = false;
     let showContextMenu = false;
     let contextMenuComponent: ContextMenu;
 
     const contextMenuItems = [
         { label: 'Clone as new card', icon: 'content_copy', action: 'clone-as-new-card' },
-        //TODO: { label: 'Track in my board', icon: 'add', action: 'track-card' },
+        { label: 'Track this card in another board', icon: 'track_changes', action: 'track-card' },
         { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' }
     ];
 
-    onMount(async () => {       
+    onMount(async () => {   
         try {
             const creator = await getUserWithProfileFromPubKey(card.pubkey);
             creatorName = creator?.profile?.displayName || 'Anonymous';
@@ -102,10 +100,6 @@
 
     // Add this computed property
     $: fullDateTime = card.created_at ? formatDateTime(card.created_at) : '';
-
-    // Add this computed property for assignees display
-    $: hasAssigneesOrAttachments = (card.assignees && card.assignees.length > 0) || 
-                                  (card.attachments && card.attachments.length > 0);
 
     function zapComplete(){
         loadZapAmount();
@@ -198,20 +192,17 @@
         activeContextMenuId.set(null);
     }
 
-        function openBoardSelector() {
-        showBoardSelector = true;
+     function closeBoardSelector() {
+        showBoardSelectorForCloning = false;
+        showBoardSelectorForTrackingInDifferentBoard = false;
     }
 
-    function closeBoardSelector() {
-        showBoardSelector = false;
-    }
-
-    async function handleBoardSelect(event) {
+    async function handleBoardSelectForCloning(event) {
         const targetBoardId = event.detail;
         
         try {
             await kanbanStore.cloneCardToBoard(card, targetBoardId);
-            showBoardSelector = false;
+            showBoardSelectorForCloning = false;
             toastStore.addToast('Card cloned successfully as a new card');
         } catch (error) {
             console.error('Failed to copy card:', error);
@@ -219,11 +210,35 @@
         }
     }
 
+    async function handleBoardSelectForTrackingInDifferentBoard(event) {
+        const targetBoardId = event.detail;
+        
+        try {
+            await kanbanStore.trackCardInAnotherBoard(card, 
+                `30301:${boardPubkey}:${boardId}`, 
+                targetBoardId);
+            showBoardSelectorForTrackingInDifferentBoard = false;
+            toastStore.addToast('Card is now being tracked in the selected board');
+        } catch (error) {
+            console.error('Failed to track card in the selected board:', error);
+            toastStore.addToast('Failed to track card in the selected board', 'error');
+        }
+    }
+
     async function cloneAsNewCard(event: MouseEvent) {
         event.preventDefault();
         event.stopPropagation();
         
-        showBoardSelector = true;
+        showBoardSelectorForCloning = true;
+        
+        closeMenu();
+    }
+
+    async function trackCardInAnotherBoard(event: MouseEvent) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        showBoardSelectorForTrackingInDifferentBoard = true;
         
         closeMenu();
     }
@@ -232,7 +247,11 @@
         const action = event.detail;
         if (action === 'clone-as-new-card') {
             cloneAsNewCard(event);
-        } else if (action === 'copy-permalink') {
+        }
+        else if (action === 'track-card') {
+            trackCardInAnotherBoard(event);
+        } 
+        else if (action === 'copy-permalink') {
             copyPermalink(event);
         }
     }
@@ -240,7 +259,7 @@
 
 <div 
     class="card" 
-    draggable={!readOnly}
+    draggable={!readOnly && !(card.trackingRef !== undefined)}
     on:click={openDetails}
     on:dragstart={handleDragStart}
     on:contextmenu={(e) => openMenu(e, card.id)}
@@ -254,6 +273,16 @@
             {/each}
             {/if}
             
+        </div>
+        <div>
+            <!-- show icon if there is card has trackingRef -->
+            {#if card.trackingRef}
+            <button on:click|preventDefault|stopPropagation={(e) => null}
+                class="more-options-btn">
+                <span class="material-icons" title="Tracked card from another board">track_changes</span>
+            </button>
+                
+            {/if}
         </div>
             <button on:click|preventDefault|stopPropagation={(e) => openMenu(e, card.id)}
                 class="more-options-btn">
@@ -315,14 +344,19 @@
         />
     {/if}
      <BoardSelectorModal
-                visible={showBoardSelector}
+                visible={showBoardSelectorForCloning}
                 onClose={closeBoardSelector}
-                on:select={handleBoardSelect}
+                on:select={handleBoardSelectForCloning}
             />
+    <BoardSelectorModal
+            visible={showBoardSelectorForTrackingInDifferentBoard}
+            onClose={closeBoardSelector}
+            on:select={handleBoardSelectForTrackingInDifferentBoard}
+        />
 </div>
 
 {#if showDetails}
-    <CardDetails {card} {boardId} {isUnmapped} onClose={closeDetails} {readOnly}/>
+    <CardDetails {card} {boardId} {isUnmapped} onClose={closeDetails} readOnly={readOnly || (card.trackingRef !== undefined)}/>
 {/if}
 
 {#if zapError}

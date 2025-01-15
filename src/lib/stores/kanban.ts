@@ -1,6 +1,7 @@
 import { writable, get } from 'svelte/store';
-import NDK, { NDKEvent, NDKUser, type NDKFilter, type NDKKind } from '@nostr-dev-kit/ndk';
+import NDK, { NDKEvent, NDKUser, type NDKFilter, type NDKKind, type NDKTag } from '@nostr-dev-kit/ndk';
 import KanbanMigrationUtil from '../utils/MigrationUtilV1';
+import { ndkInstance } from '../ndk';
 
 export interface KanbanBoard {
     id: string;
@@ -37,6 +38,9 @@ export interface Card {
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
     created_at: number;
     aTags?: string[]; // Array of a tags pointing to boards
+    trackingKind?: number;
+    trackingRef?: { boardATag: string, cardDTag: string };
+    content?: string;
 }
 
 interface KanbanState {
@@ -71,55 +75,6 @@ function createKanbanStore() {
             throw new Error('NDK instance is required');
         }
         ndk = ndkInstance;
-    }
-
-    async function loadLegacyBoards() {
-        console.log("Loading boards");
-        update(state => ({ ...state, loading: true, error: null }));
-        
-        try {
-            const filter: NDKFilter = {
-                kinds: [30301 as NDKKind],                
-                limit: 500
-            };
-
-            const events = await ndk.fetchEvents(filter);
-            console.log(events.size);
-            const boards: KanbanBoard[] = [];
-
-            for (const event of events) {
-                try {
-                    const content = JSON.parse(event.content);
-                    const titleTag = event.tags.find(t => t[0] === 'title');
-                    const dTag = event.tags.find(t => t[0] === 'd');
-                    boards.push({
-                        id: dTag ? dTag[1] : event.id,
-                        pubkey: event.pubkey,
-                        title: titleTag ? titleTag[1] : 'Untitled Board',
-                        description: content.description,
-                        columns: content.columns,
-                        isNoZapBoard: content.isNoZapBoard || false
-                    });
-                } catch (error) {
-                    console.error('Failed to parse board event:', error);
-                }
-            }
-
-            console.log('Loaded boards:', boards);
-            update(state => ({
-                ...state,
-                boards,
-                loading: false
-            }));
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to load boards';
-            update(state => ({
-                ...state,
-                loading: false,
-                error: errorMessage
-            }));
-            throw error;
-        }
     }
 
     async function loadBoards(boardListType: BoardListType = BoardListType.All) {
@@ -194,7 +149,6 @@ function createKanbanStore() {
                 }
             }
 
-            console.log('Loaded boards:', boards);
             if(boardListType === BoardListType.MyBoards){
                 update(state => ({
                     ...state,
@@ -351,46 +305,63 @@ function createKanbanStore() {
 
             for (const event of dedupedEvents) {
                 try {
-                    const titleTag = event.tags.find(t => t[0] === 'title');
-                    const descTag = event.tags.find(t => t[0] === 'description');
-                    const dTag = event.tags.find(t => t[0] === 'd');
-                    const statusTag = event.tags.find(t => t[0] === 's');
-                    const rankTag = event.tags.find(t => t[0] === 'rank');
+                    //get dTags
+                    const originalEventDTag = event.tags.find(t => t[0] === 'd');
+                    let eventToLoad: NDKEvent|undefined = event;
+                    // get event's k tag
+                    const kTag = event.tags.find(t => t[0] === 'k');
+                    let trackingRef, trackingKind;
+                    
+                    if(kTag){
+                        console.log("Found ktag in card event", event);
+                        const trackedEventOutput = await loadTrackedEvent(kTag, trackingRef, event);
+                        if(trackedEventOutput){
+                            eventToLoad = trackedEventOutput.eventToLoad;
+                            trackingRef = trackedEventOutput.trackingRef;
+                            trackingKind = Number.parseInt(kTag[1]);
+                        } else{
+                            continue;
+                        }
+                    }
+                    if(!eventToLoad){
+                        continue;
+                    }
+                    const titleTag = eventToLoad.tags.find(t => t[0] === 'title');
+                    const descTag = eventToLoad.tags.find(t => t[0] === 'description');
+                    const dTag = eventToLoad.tags.find(t => t[0] === 'd');
+                    const statusTag = eventToLoad.tags.find(t => t[0] === 's');
+                    const rankTag = eventToLoad.tags.find(t => t[0] === 'rank');
                     
                     // Get attachments from u tags
-                    const attachments = event.tags
+                    const attachments = eventToLoad.tags
                         .filter(t => t[0] === 'u')
                         .map(t => t[1]);
 
                     // Get assignees from zap tags
-                    const assignees = event.tags
+                    const assignees = eventToLoad.tags
                         .filter(t => t[0] === 'zap')
                         .map(t => t[1]);
 
                     // Get all a tags
-                    const aTags = event.tags
+                    const aTags = eventToLoad.tags
                         .filter(t => t[0] === 'a')
                         .map(t => t[1]);
 
-                    // Handle tracker cards
-                    const isTrackerCard = event.tags.some(t => t[0] === 'k');
-                    if (isTrackerCard) {
-                        // Implementation for tracker cards...
-                        continue;
-                    }
-
+                  
                     boardCards.push({
                         id: event.id,
-                        dTag: dTag ? dTag[1] : event.id,
-                        pubkey: event.pubkey,
+                        dTag: originalEventDTag? originalEventDTag[1]! : event.id,
+                        pubkey: eventToLoad.pubkey,
                         title: titleTag ? titleTag[1] : 'Untitled Card',
                         description: descTag ? descTag[1] : '',
                         status: statusTag ? statusTag[1] : 'To Do',
                         order: rankTag ? parseInt(rankTag[1]) : 0,
                         attachments,
                         assignees,
-                        created_at: event.created_at!,
-                        aTags
+                        created_at: eventToLoad.created_at!,
+                        aTags,
+                        trackingRef: trackingRef,
+                        trackingKind: trackingKind
                     });
                 } catch (error) {
                     console.error('Failed to parse card event:', error);
@@ -400,6 +371,7 @@ function createKanbanStore() {
             update(state => {
                 const newCards = new Map(state.cards);
                 newCards.set(boardId, boardCards);
+                console.log("New cards", newCards);
                 return { ...state, cards: newCards };
             });
         } catch (error) {
@@ -820,6 +792,110 @@ function createKanbanStore() {
         }
     }
 
+    async function trackCardInAnotherBoard(card: Card, sourceBoardATag:string, targetBoardId: string) {
+        try {
+
+            const boardFilter: NDKFilter = {
+                kinds: [30301 as NDKKind],
+                '#d': [targetBoardId]
+            };
+            const boardEvents = await ndk.fetchEvents(boardFilter);
+            const boardEvent = Array.from(boardEvents)[0];
+            
+            if (!boardEvent) {
+                throw new Error('Target board not found');
+            }
+
+            const targetBoardATag = `30301:${boardEvent.pubkey}:${targetBoardId}`;
+
+            const newCardEvent = new NDKEvent(ndk);
+            newCardEvent.kind = 30302 as NDKKind;
+
+            const aTag = sourceBoardATag;
+            const dTag = card.dTag;
+
+            // Add tags according to new spec
+            newCardEvent.tags = [
+                ['d', crypto.randomUUID()],
+                ['k', "30302"],
+                ['refs/board', aTag],
+                ['refs/card', dTag],
+                // Add a tags
+                ['a', targetBoardATag]
+            ];
+            await newCardEvent.publish();            
+        } catch (error) {
+            console.error('Failed to clone card:', error);
+            throw error;
+        }
+    }
+
+    async function loadTrackedEvent(kTag:NDKTag, trackingRef: any, sourceEvent: NDKEvent) {
+        let trackedCardEvent;
+        if (kTag[1] === '30302') { // if the event is a card, load the card
+            trackingRef = {
+                boardATag: sourceEvent.tags.find(t => t[0] === 'refs/board')![1],
+                cardDTag: sourceEvent.tags.find(t => t[0] === 'refs/card')![1]
+            };
+            const trackedCardFilter: NDKFilter = {
+                kinds: [parseInt(kTag[1]) as NDKKind],
+                '#d': [trackingRef.cardDTag]
+            };
+            const trackedCardEvents = await ndkInstance.ndk?.fetchEvents(trackedCardFilter);
+            if(trackedCardEvents && trackedCardEvents.size > 0){
+               
+                //load the board's maintainers
+                const boardFilter: NDKFilter = {
+                    kinds: [30301 as NDKKind],
+                    '#d': [trackingRef.boardATag.split(':')[2]]
+                };
+                const boardEvents = await ndkInstance.ndk?.fetchEvents(boardFilter);
+                if (!boardEvents) {
+                    console.error('Board not found');
+                    return;
+                }
+                const boardEvent = Array.from(boardEvents!)[0];
+                const maintainers = boardEvent.tags
+                    .filter(t => t[0] === 'p')
+                    .map(t => t[1]);
+                console.log("Maintainers", maintainers);
+                // Retain only those trackedCardEvents authored by maintainers
+                const maintainersSet = new Set(maintainers);
+                for(const event of trackedCardEvents){
+                    
+                    if(!maintainersSet.has(event.pubkey) && event.pubkey !== boardEvent.pubkey){
+                        console.log("Removing event", event);
+                        trackedCardEvents.delete(event);
+                    }
+                }
+                // get the latest trackedCardEvent by maintainers
+                trackedCardEvent = Array.from(trackedCardEvents).reduce((a, b) => a.created_at! > b.created_at! ? a : b);
+            } else {
+                console.error('Tracked card event not found');
+                return;
+            }                
+        } else {
+            // TODO: load the content from tracked event
+        }
+        return { trackingRef, eventToLoad: trackedCardEvent };
+    }
+    
+    function dedupeEventsBasedOnDTag(events: Set<NDKEvent>) {
+        const eventsByDTag = new Map<string, NDKEvent>();
+        for (const event of events) {
+            const dTag = event.tags.find(t => t[0] === 'd');
+            if (!dTag) continue;
+    
+            const existingEvent = eventsByDTag.get(dTag[1]);
+            if (!existingEvent || existingEvent.created_at! < event.created_at!) {
+                eventsByDTag.set(dTag[1], event);
+            }
+        }
+    
+        // Use only the latest events
+        const dedupedEvents = Array.from(eventsByDTag.values());
+        return dedupedEvents;
+    }
 
     return {
         subscribe,
@@ -837,25 +913,11 @@ function createKanbanStore() {
         updateCard,
         hasNDK,
         canEditCards,
-        cloneCardToBoard
+        cloneCardToBoard,
+        trackCardInAnotherBoard
     };
 }
 
 export const kanbanStore = createKanbanStore(); 
 
-function dedupeEventsBasedOnDTag(events: Set<NDKEvent>) {
-    const eventsByDTag = new Map<string, NDKEvent>();
-    for (const event of events) {
-        const dTag = event.tags.find(t => t[0] === 'd');
-        if (!dTag) continue;
 
-        const existingEvent = eventsByDTag.get(dTag[1]);
-        if (!existingEvent || existingEvent.created_at! < event.created_at!) {
-            eventsByDTag.set(dTag[1], event);
-        }
-    }
-
-    // Use only the latest events
-    const dedupedEvents = Array.from(eventsByDTag.values());
-    return dedupedEvents;
-}

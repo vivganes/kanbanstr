@@ -138,7 +138,7 @@
     </header>
 
     <div class="cards">
-        {#each sortedCards as card, i (card.dTag)}            
+        {#each sortedCards as card, i (card.id)}            
             <div
                 class="card-wrapper"
                 on:dragover|preventDefault|stopPropagation={(e) => handleDragOver(e, i)}

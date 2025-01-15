@@ -199,28 +199,6 @@
         }   
     }
 
-    
-    function openBoardSelector() {
-        showBoardSelector = true;
-    }
-
-    function closeBoardSelector() {
-        showBoardSelector = false;
-    }
-
-    async function handleBoardSelect(id: string) {
-        if (!selectedBoardId) return;
-        try {
-            await kanbanStore.cloneCardToBoard(card, selectedBoardId);
-            selectedBoardId = '';
-            var msg =`Successfully cloned card to ${selectedBoardId}`
-            console.log(msg);
-        } catch (error) {
-            msg = `Failed to clone card to ${selectedBoardId}`
-            console.error(msg, error);
-        }
-    }
-
     function changeMarkdownEditability() {
         if(editor){
             editor.setEditable(canEditCard);
@@ -247,6 +225,14 @@
                 </div>
             {/if}
 
+            {#if card.trackingKind === 30302 && card.trackingRef}
+                <div class="info-message">
+                    This card is just a tracker. It is originally present 
+                    <a href={`${window.location.origin}/#/board/${card.trackingRef.boardATag.split(":")[1]}/${card.trackingRef.boardATag.split(":")[2]}/card/${card.trackingRef.cardDTag}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer">here</a>.
+                </div>
+            {/if}
             <div class="section">
                 <label>Status</label>
                 {#if isUnmapped}
@@ -601,6 +587,14 @@
     .error-message {
         background: #ffebee;
         color: #c62828;
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+    }
+
+    .info-message {
+        background: #ebf2ff;
         padding: 0.75rem;
         border-radius: 4px;
         margin-bottom: 1rem;
