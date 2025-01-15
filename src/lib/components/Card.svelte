@@ -278,7 +278,7 @@
             <!-- show icon if there is card has trackingRef -->
             {#if card.trackingRef}
             <button on:click|preventDefault|stopPropagation={(e) => null}
-                class="more-options-btn">
+                class="track-icon">
                 <span class="material-icons" title="Tracked card from another board">track_changes</span>
             </button>
                 
@@ -591,6 +591,29 @@
     .more-options-btn:hover {
         opacity: 1;
         background: rgba(0, 0, 0, 0.05);
+    }
+
+    .track-icon{
+        background: none;
+        background: linear-gradient(90deg, #cc00b1, #5638ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color:black;
+        border: none;
+        padding: 0.2rem;
+        font-size: 1rem;
+        cursor: auto;
+        opacity: 0.9;
+        border-radius: 4px;
+        transition: opacity 0.2s, background-color 0.2s;
+    }
+
+    .track-icon:hover {
+        opacity: 1;
+        background: none;
+        background: linear-gradient(90deg, #cc00b1, #5638ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 
 </style> 

@@ -313,7 +313,6 @@ function createKanbanStore() {
                     let trackingRef, trackingKind;
                     
                     if(kTag){
-                        console.log("Found ktag in card event", event);
                         const trackedEventOutput = await loadTrackedEvent(kTag, trackingRef, event);
                         if(trackedEventOutput){
                             eventToLoad = trackedEventOutput.eventToLoad;
@@ -371,7 +370,6 @@ function createKanbanStore() {
             update(state => {
                 const newCards = new Map(state.cards);
                 newCards.set(boardId, boardCards);
-                console.log("New cards", newCards);
                 return { ...state, cards: newCards };
             });
         } catch (error) {
@@ -858,13 +856,11 @@ function createKanbanStore() {
                 const maintainers = boardEvent.tags
                     .filter(t => t[0] === 'p')
                     .map(t => t[1]);
-                console.log("Maintainers", maintainers);
                 // Retain only those trackedCardEvents authored by maintainers
                 const maintainersSet = new Set(maintainers);
                 for(const event of trackedCardEvents){
                     
                     if(!maintainersSet.has(event.pubkey) && event.pubkey !== boardEvent.pubkey){
-                        console.log("Removing event", event);
                         trackedCardEvents.delete(event);
                     }
                 }
