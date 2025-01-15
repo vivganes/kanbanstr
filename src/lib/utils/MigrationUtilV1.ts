@@ -160,6 +160,7 @@ class KanbanMigrationUtil {
             // add all zap tags from old event but in the new event they need to be 'p' tags
             zapTags.forEach((zapTag) => {
                 newCardEvent.tags.push(['p', zapTag[1]]);
+                newCardEvent.tags.push(['zap', zapTag[1]]);
             });
 
 

@@ -336,9 +336,9 @@ function createKanbanStore() {
                         .filter(t => t[0] === 'u')
                         .map(t => t[1]);
 
-                    // Get assignees from zap tags
+                    // Get assignees from p or zap tags
                     const assignees = eventToLoad.tags
-                        .filter(t => t[0] === 'zap')
+                        .filter(t => (t[0] === 'p' || t[0] === 'zap'))
                         .map(t => t[1]);
 
                     // Get all a tags
@@ -440,6 +440,7 @@ function createKanbanStore() {
             if (card.assignees && card.assignees.length > 0) {
                 card.assignees.forEach(assignee => {
                     cardEvent.tags.push(['zap', assignee]);
+                    cardEvent.tags.push(['p',assignee]);
                 });
             }
 
@@ -522,10 +523,11 @@ function createKanbanStore() {
                 ['title', card.title],
                 ['description', card.description],
                 ['alt', `A card titled ${card.title}`],
-                ['s', card.status],
-                ['rank', newOrder.toString()],
-                
+                ['rank', newOrder.toString()],                
             ];
+            if(card.status){
+                newCardEvent.tags.push(['s', card.status]);
+            }
 
             // Add attachment tags
             if (card.attachments && card.attachments.length > 0) {
@@ -538,6 +540,7 @@ function createKanbanStore() {
             if (card.assignees && card.assignees.length > 0) {
                 card.assignees.forEach(assignee => {
                     newCardEvent.tags.push(['zap', assignee]);
+                    newCardEvent.tags.push(['p',assignee]);
                 });
             }
 
