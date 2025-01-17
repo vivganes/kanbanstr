@@ -39,7 +39,7 @@ export interface Card {
     created_at: number;
     aTags?: string[]; // Array of a tags pointing to boards
     trackingKind?: number;
-    trackingRef?: { boardATag: string, cardDTag: string };
+    trackingRef?: { boardATag?: string, cardDTag?: string, eventId?:string };
     content?: string;
 }
 
@@ -313,7 +313,7 @@ function createKanbanStore() {
                     let trackingRef, trackingKind;
                     
                     if(kTag){
-                        const trackedEventOutput = await loadTrackedEvent(kTag, trackingRef, event);
+                        const trackedEventOutput = await loadTrackedEvent(kTag, event);
                         if(trackedEventOutput){
                             eventToLoad = trackedEventOutput.eventToLoad;
                             trackingRef = trackedEventOutput.trackingRef;
@@ -325,43 +325,22 @@ function createKanbanStore() {
                     if(!eventToLoad){
                         continue;
                     }
-                    const titleTag = eventToLoad.tags.find(t => t[0] === 'title');
-                    const descTag = eventToLoad.tags.find(t => t[0] === 'description');
-                    const dTag = eventToLoad.tags.find(t => t[0] === 'd');
-                    const statusTag = eventToLoad.tags.find(t => t[0] === 's');
-                    const rankTag = eventToLoad.tags.find(t => t[0] === 'rank');
-                    
-                    // Get attachments from u tags
-                    const attachments = eventToLoad.tags
-                        .filter(t => t[0] === 'u')
-                        .map(t => t[1]);
-
-                    // Get assignees from p or zap tags
-                    const assignees = eventToLoad.tags
-                        .filter(t => (t[0] === 'p' || t[0] === 'zap'))
-                        .map(t => t[1]);
-
-                    // Get all a tags
-                    const aTags = eventToLoad.tags
-                        .filter(t => t[0] === 'a')
-                        .map(t => t[1]);
-
-                  
-                    boardCards.push({
-                        id: event.id,
-                        dTag: originalEventDTag? originalEventDTag[1]! : event.id,
-                        pubkey: eventToLoad.pubkey,
-                        title: titleTag ? titleTag[1] : 'Untitled Card',
-                        description: descTag ? descTag[1] : '',
-                        status: statusTag ? statusTag[1] : 'To Do',
-                        order: rankTag ? parseInt(rankTag[1]) : 0,
-                        attachments,
-                        assignees,
-                        created_at: eventToLoad.created_at!,
-                        aTags,
-                        trackingRef: trackingRef,
-                        trackingKind: trackingKind
-                    });
+                    if(kTag){
+                        switch(kTag[1]){
+                            case '30302':
+                                await loadKanbanCardToBoard(eventToLoad, boardCards, event, originalEventDTag, trackingRef, trackingKind);
+                                break;
+                            case '1621':
+                            case '1617':
+                                await loadGitCardToBoard(eventToLoad, boardCards, event, originalEventDTag, trackingRef, trackingKind);
+                                break;
+                            default:
+                                console.log('Unsupported kind:', kTag[1]);
+                                break;
+                        }
+                    } else {
+                        loadKanbanCardToBoard(eventToLoad, boardCards, event, originalEventDTag, trackingRef, trackingKind);
+                    }                   
                 } catch (error) {
                     console.error('Failed to parse card event:', error);
                 }
@@ -376,6 +355,110 @@ function createKanbanStore() {
             console.error('Failed to load cards:', error);
             throw error;
         }
+    }
+
+    async function loadGitCardToBoard(eventToLoad: NDKEvent, boardCards: Card[], event: NDKEvent, originalEventDTag: NDKTag | undefined, trackingRef: any, trackingKind: number | undefined){
+        const subjectTag = eventToLoad.tags.find(t => t[0] === 'subject');
+        const altTag = eventToLoad.tags.find(t => t[0] === 'alt');
+        const descriptionTag = eventToLoad.tags.find(t => t[0] === 'description');
+        const status = await getStatusOfIssueWithEventId(eventToLoad.id, trackingKind);
+
+        boardCards.push({
+            id: event.id,            
+            dTag: originalEventDTag ? originalEventDTag[1]! : event.id,
+            pubkey: eventToLoad.pubkey,
+            description: '',
+            title: subjectTag ? subjectTag[1] : 
+                        (altTag? altTag[1]: 
+                            (descriptionTag? descriptionTag[1]: 'Untitled')
+                        ),
+            status: status,
+            assignees: [eventToLoad.pubkey],
+            order: 0,
+            trackingKind: trackingKind,
+            trackingRef: trackingRef,
+            created_at: eventToLoad.created_at!
+        })
+    }
+
+    async function getStatusOfIssueWithEventId(id: string, eventKind: NDKKind = 1621 as NDKKind){
+        const filter = {
+            kinds: [1630 as NDKKind,1631 as NDKKind,1632 as NDKKind,1633 as NDKKind],
+            '#e': [id]
+        };
+        const statusEvents = await ndk.fetchEvents(filter);
+        if(statusEvents && statusEvents.size > 0){
+            const filteredEventsWithEAsRoot = Array.from(statusEvents).filter(event => {
+                if(event.tags.find(t => t[0] === 'e')![1] && event.tags.find(t => t[0] === 'e')![1] === id &&
+                    event.tags.find(t => t[0] === 'e')![2] && event.tags.find(t => t[0] === 'e')![2] === 'root'){
+                    return true;
+                }
+                return false;            
+            });
+            if(filteredEventsWithEAsRoot.length > 0){
+                const latestEvent = filteredEventsWithEAsRoot.reduce((a, b) => a.created_at! > b.created_at! ? a : b);
+                const statusKind = latestEvent.kind;
+                return getGitIssueStatusTextFromKind(statusKind!, eventKind);
+                
+            }        
+        }
+        return 'Open';
+    }
+
+    function getGitIssueStatusTextFromKind(kind: number, eventKind: NDKKind){
+        switch(kind){
+            case 1630:
+                return 'Open';
+            case 1631:
+                return (eventKind=== 1621 as NDKKind) ?'Resolved': 'Merged';
+            case 1632:
+                return 'Closed';
+            case 1633:
+                return 'Draft';
+            default:
+                return 'Open';
+        }
+    }
+
+    
+
+    function loadKanbanCardToBoard(eventToLoad: NDKEvent, boardCards: Card[], event: NDKEvent, originalEventDTag: NDKTag | undefined, trackingRef: any, trackingKind: number | undefined) {
+        const titleTag = eventToLoad.tags.find(t => t[0] === 'title');
+        const descTag = eventToLoad.tags.find(t => t[0] === 'description');
+        const statusTag = eventToLoad.tags.find(t => t[0] === 's');
+        const rankTag = eventToLoad.tags.find(t => t[0] === 'rank');
+
+        // Get attachments from u tags
+        const attachments = eventToLoad.tags
+            .filter(t => t[0] === 'u')
+            .map(t => t[1]);
+
+        // Get assignees from p or zap tags
+        const assignees = eventToLoad.tags
+            .filter(t => (t[0] === 'p' || t[0] === 'zap'))
+            .map(t => t[1]);
+
+        // Get all a tags
+        const aTags = eventToLoad.tags
+            .filter(t => t[0] === 'a')
+            .map(t => t[1]);
+
+
+        boardCards.push({
+            id: event.id,
+            dTag: originalEventDTag ? originalEventDTag[1]! : event.id,
+            pubkey: eventToLoad.pubkey,
+            title: titleTag ? titleTag[1] : 'Untitled Card',
+            description: descTag ? descTag[1] : '',
+            status: statusTag ? statusTag[1] : 'To Do',
+            order: rankTag ? parseInt(rankTag[1]) : 0,
+            attachments,
+            assignees,
+            created_at: eventToLoad.created_at!,
+            aTags,
+            trackingRef: trackingRef,
+            trackingKind: trackingKind
+        });
     }
 
     async function createBoard(title: string, description: string, columns: Column[], maintainers: string[] = []) {
@@ -831,8 +914,8 @@ function createKanbanStore() {
         }
     }
 
-    async function loadTrackedEvent(kTag:NDKTag, trackingRef: any, sourceEvent: NDKEvent) {
-        let trackedCardEvent;
+    async function loadTrackedEvent(kTag:NDKTag, sourceEvent: NDKEvent) {
+        let trackedCardEvent, trackingRef;
         if (kTag[1] === '30302') { // if the event is a card, load the card
             trackingRef = {
                 boardATag: sourceEvent.tags.find(t => t[0] === 'refs/board')![1],
@@ -873,7 +956,22 @@ function createKanbanStore() {
                 console.error('Tracked card event not found');
                 return;
             }                
-        } else {
+        } else if (kTag[1] === '1621' || kTag[1] === '1617') { // Git issue  or proposal          
+            const eTag = sourceEvent.tags.find(t => t[0] === 'e');
+            trackingRef = {
+                eventId: eTag![1]
+            }
+            const trackedIssueFilter: NDKFilter = {
+                'ids': [eTag![1]]
+            };
+            const trackedIssueEvents = await ndkInstance.ndk?.fetchEvents(trackedIssueFilter);
+            if(trackedIssueEvents && trackedIssueEvents.size > 0){
+                trackedCardEvent = [...trackedIssueEvents][0];
+                return {trackingRef, eventToLoad: trackedCardEvent};
+            }
+            return;
+        }           
+        else {
             // TODO: load the content from tracked event
         }
         return { trackingRef, eventToLoad: trackedCardEvent };
