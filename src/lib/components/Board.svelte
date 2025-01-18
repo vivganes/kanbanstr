@@ -252,23 +252,24 @@
     <header class="board-header">
         <div class="header-actions">
             <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
-
-            <button 
-                class="board-btn" 
-                on:click={() => showReorderColumns = true}
-                disabled={!canEdit}
-                title={!canEdit ? "Only the board owner can reorder columns" : ""}
-            >
-                ⋮⋮ Reorder Columns
-            </button>
-            <button 
-                class="add-column-btn" 
-                on:click={() => showAddColumn = true}
-                disabled={!canEdit}
-                title={!canEdit ? "Only the board owner can add columns" : ""}
-            >
-                + Add Column
-            </button>
+            <div class="right-actions">
+                <button 
+                    class="board-btn" 
+                    on:click={() => showReorderColumns = true}
+                    disabled={!canEdit}
+                    title={!canEdit ? "Only the board owner can reorder columns" : ""}
+                >
+                    ⋮⋮ Reorder Columns
+                </button>
+                <button 
+                    class="add-column-btn" 
+                    on:click={() => showAddColumn = true}
+                    disabled={!canEdit}
+                    title={!canEdit ? "Only the board owner can add columns" : ""}
+                >
+                    + Add Column
+                </button>
+            </div>
         </div>
         <div class="header-content">
             {#if isEditingDetails}
@@ -323,7 +324,7 @@
                         on:click={startEditingDetails}
                         title="Edit board details"
                     >
-                    ✎ Edit Board
+                    ✎
                     </button>                       
                     {/if}
                 </div>
@@ -528,8 +529,15 @@
 
     .header-actions {
         display: flex;
-        gap: 1rem;
+        justify-content: space-between;
         align-items: center;
+        width: 100%;
+    }
+
+    .right-actions {
+        display: flex;
+        gap: 1rem;
+        margin-left: auto;
     }
 
     .board-btn {
@@ -597,8 +605,9 @@
 
     .header-actions {
         display: flex;
-        gap: 1rem;
+        justify-content: space-between;
         align-items: center;
+        width: 100%;
     }
 
     .back-button {
