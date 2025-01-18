@@ -686,6 +686,7 @@
     .edit-details-form {
         background: white;
         padding: 1rem;
+        padding-right:2rem;
         border-radius: 8px;
         margin-bottom: 1rem;
         width:fit-content;

@@ -347,7 +347,6 @@
     .column-header {
         padding: 0.75rem;
         border-bottom: 1px solid #ddd;
-        background: white;
         border-top-left-radius: 8px;
         border-top-right-radius: 8px;
     }
