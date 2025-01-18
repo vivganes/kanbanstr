@@ -255,6 +255,10 @@
             copyPermalink(event);
         }
     }
+
+    $: if (zapAmount !== undefined && card) {
+        card.zapAmount = zapAmount;
+    }
 </script>
 
 <div 
