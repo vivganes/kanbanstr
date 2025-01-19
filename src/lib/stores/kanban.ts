@@ -36,6 +36,7 @@ export interface Card {
     order: number;
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
+    cardTags?: string[]; 
     created_at: number;
     aTags?: string[]; // Array of a tags pointing to boards
     trackingKind?: number;
