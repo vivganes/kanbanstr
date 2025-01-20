@@ -22,6 +22,8 @@
     let description = card.description;
     let newAttachment = '';
     let attachments = [...(card.attachments || [])];
+    let newTag = '';
+    let tTags = [...(card.tTags || [] )];
     let newAssignee = '';
     let assignees = [...(card.assignees || [])];
     let editor: Editor;
@@ -112,6 +114,18 @@
         attachments = attachments.filter((_, i) => i !== index);
     }
 
+    function addTag() {
+        console.log("Tags = ", tTags);
+        if (newTag.trim() && !tTags.includes(newTag)) {
+        tTags = [...tTags, newTag.trim()];
+        newTag = '';
+        }
+    }
+
+    function removeTag(index: number) {
+        tTags = tTags.filter((_, i) => i !== index);
+    }
+
     async function validateAssignee(value: string) {
         if (!value.trim()) {
             currentAssigneeDisplay = null;
@@ -167,6 +181,7 @@
                 status: status?.trim(),
                 description: description.trim(),
                 attachments,
+                tTags,
                 assignees
             });
 
@@ -339,6 +354,41 @@
                     disabled={!canEditCard || !newAttachment.trim()}
                     on:click={addAttachment}>
                         Add Link
+                    </button>
+                </div>
+                {/if}
+            </div>
+
+            <div class="section">
+                <label>Tags</label>
+                <div class="tag-list">
+                    {#each tTags as tag, i}
+                        <div class="tag-item">
+                            {#if tTags.length > 0}
+                                <p class="view-tag">{tag}</p>
+                            {/if}
+                            <button type="button" class="remove-btn" on:click={() => removeTag(i)}>
+                                &times;
+                            </button>
+                        </div>
+                    {/each}
+                    {#if tTags.length === 0}
+                        <div>No Tags</div>
+                    {/if}
+                </div>
+                {#if canEditCard}
+                <div class="add-attachment">
+                    <input
+                        bind:value={newTag}
+                        placeholder="Enter Tags for this Card"
+                        disabled={!canEditCard}
+                        type="text"
+                        on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                    />
+                    <button type="button" 
+                    disabled={!canEditCard || !newTag.trim()}
+                    on:click={addTag}>
+                        Add Tag
                     </button>
                 </div>
                 {/if}
@@ -530,6 +580,7 @@
         color: #ff4444;
         cursor: pointer;
         padding: 0 0.5rem;
+        font-size: 1.2rem;
     }
 
     .add-attachment {
@@ -552,6 +603,33 @@
         border: none;
         border-radius: 4px;
         cursor: pointer;
+    }
+
+    .tag-list {
+        width: auto;
+        height: auto;
+        color: #fff;
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .tag-item {
+        display: flex;
+        justify-content: space-between;
+        background-color: #666;
+        width: 4rem;
+        height: 2.5rem;
+        margin-right: 5px;
+        margin-bottom: 5px;
+        padding-left: 10px;
+        padding-right: 2px;
+        border-radius: 5px;            
+    }
+
+    .view-tag {
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     footer {
