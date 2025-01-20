@@ -372,7 +372,7 @@
                         </div>
                     {/each}
                     {#if tTags.length === 0}
-                        <div>No Tags</div>
+                        <div class="no-tags-text">No Tags</div>
                     {/if}
                 </div>
                 {#if canEditCard}
@@ -629,6 +629,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    .no-tags-text{
+        color:#000000;
     }
 
     footer {

@@ -310,7 +310,7 @@
                 <p class="card-tag-text">{tag}</p>
             {/each}
             <p class="card-tag-text tags-show-less" on:click={toggleShowAll}>
-                show Less
+                Show less
             </p>
         {:else}
             {#each tTags.slice(0, 3) as tag}
@@ -436,20 +436,24 @@
     .card-tag-div{
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
     }
 
     .card-tag-text{
         height: 1.5rem;
         min-width: 2.5rem;
-        padding: 2px 10px;
-        background-color: #666;
+        padding: 2px;
+        margin:1px;
+        background-color: #8dd1e2;
         border-radius: 5px;
-        color: #fff;
+        color: #03051ad5;
+        font-size: small;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: -1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
     }
 
     .tags-show-more {
@@ -469,7 +473,7 @@
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
-        margin-top: 0.5rem;
+        margin-top: 0.25rem;
         font-size: 0.8rem;
         color: #666;
     }
@@ -623,7 +627,7 @@
     .card-meta {
         font-size: 0.75rem;
         color: #666;
-        margin-top: 2rem; 
+        margin-top: 0.5rem; 
     }
 
     @media (prefers-color-scheme: dark) {

@@ -325,49 +325,7 @@ function createKanbanStore() {
                     }
                     if(!eventToLoad){
                         continue;
-                    }
-                    const titleTag = eventToLoad.tags.find(t => t[0] === 'title');
-                    const descTag = eventToLoad.tags.find(t => t[0] === 'description');
-                    const dTag = eventToLoad.tags.find(t => t[0] === 'd');
-                    const statusTag = eventToLoad.tags.find(t => t[0] === 's');
-                    const rankTag = eventToLoad.tags.find(t => t[0] === 'rank');
-                    
-                    // Get attachments from u tags
-                    const attachments = eventToLoad.tags
-                        .filter(t => t[0] === 'u')
-                        .map(t => t[1]);
-
-                    const tTags = eventToLoad.tags
-                        .filter(t => t[0] === 't')
-                        .map(t => t[1]);
-
-                    // Get assignees from p or zap tags
-                    const assignees = eventToLoad.tags
-                        .filter(t => (t[0] === 'p' || t[0] === 'zap'))
-                        .map(t => t[1]);
-
-                    // Get all a tags
-                    const aTags = eventToLoad.tags
-                        .filter(t => t[0] === 'a')
-                        .map(t => t[1]);
-
-                  
-                    boardCards.push({
-                        id: event.id,
-                        dTag: originalEventDTag? originalEventDTag[1]! : event.id,
-                        pubkey: eventToLoad.pubkey,
-                        title: titleTag ? titleTag[1] : 'Untitled Card',
-                        description: descTag ? descTag[1] : '',
-                        status: statusTag ? statusTag[1] : 'To Do',
-                        order: rankTag ? parseInt(rankTag[1]) : 0,
-                        attachments,
-                        tTags,
-                        assignees,
-                        created_at: eventToLoad.created_at!,
-                        aTags,
-                        trackingRef: trackingRef,
-                        trackingKind: trackingKind
-                    });
+                    }                    
                     if(kTag){
                         switch(kTag[1]){
                             case '30302':
