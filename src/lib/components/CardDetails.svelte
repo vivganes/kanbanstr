@@ -611,18 +611,18 @@
         color: #fff;
         display: flex;
         flex-wrap: wrap;
+        margin-bottom: 0.5rem;
     }
 
     .tag-item {
         display: flex;
         justify-content: space-between;
         background-color: #666;
-        width: 4rem;
-        height: 2.5rem;
+        min-width: 4rem;
+        height: 2rem;
         margin-right: 5px;
         margin-bottom: 5px;
-        padding-left: 10px;
-        padding-right: 2px;
+        padding: 2px 10px;
         border-radius: 5px;            
     }
 
