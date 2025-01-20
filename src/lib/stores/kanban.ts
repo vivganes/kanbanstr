@@ -485,6 +485,11 @@ function createKanbanStore() {
         const aTags = eventToLoad.tags
             .filter(t => t[0] === 'a')
             .map(t => t[1]);
+        
+        //Get all t tags
+        const tTags = eventToLoad.tags
+            .filter(t => t[0] === 't')
+            .map(t => t[1]);
 
 
         boardCards.push({
@@ -499,6 +504,7 @@ function createKanbanStore() {
             assignees,
             created_at: eventToLoad.created_at!,
             aTags,
+            tTags,
             trackingRef: trackingRef,
             trackingKind: trackingKind
         });
