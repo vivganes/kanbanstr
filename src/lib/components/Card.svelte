@@ -262,6 +262,7 @@
 
     const toggleShowAll = (e) => {
         e.preventDefault();
+        e.stopPropagation();
         showAllTags = !showAllTags;
     };
 </script>
@@ -435,11 +436,11 @@
     }
 
     .card-tag-text{
-        height: 2rem;
-        width: auto;
+        height: 1.5rem;
+        min-width: 2.5rem;
         padding: 2px 10px;
         background-color: #cc00b1;
-        border-radius: 10%;
+        border-radius: 5px;
         color: #2d2d2d;
         display: flex;
         align-items: center;
