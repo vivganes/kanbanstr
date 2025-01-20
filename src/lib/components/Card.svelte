@@ -260,6 +260,10 @@
         }
     }
 
+    $: if (zapAmount !== undefined && card) {
+        card.zapAmount = zapAmount;
+    }
+
     const toggleShowAll = (e) => {
         e.preventDefault();
         e.stopPropagation();
