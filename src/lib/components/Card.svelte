@@ -37,13 +37,17 @@
     let showBoardSelectorForCloning = false; 
     let showBoardSelectorForTrackingInDifferentBoard = false;
     let showContextMenu = false;
-    let contextMenuComponent: ContextMenu;
+    let contextMenuComponent: ContextMenu;    
 
     const contextMenuItems = [
         { label: 'Clone as new card', icon: 'content_copy', action: 'clone-as-new-card' },
         { label: 'Track this card in another board', icon: 'track_changes', action: 'track-card' },
         { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' }
     ];
+
+    let tTags = [...(card.tTags || [] )]; 
+    let showAllTags = false;
+    const additionalCount = tTags.length > 3 ? tTags.length - 3 : 0;
 
     onMount(async () => {   
         try {
@@ -255,6 +259,11 @@
             copyPermalink(event);
         }
     }
+
+    const toggleShowAll = (e) => {
+        e.preventDefault();
+        showAllTags = !showAllTags;
+    };
 </script>
 
 <div 
@@ -288,6 +297,26 @@
                 class="more-options-btn">
                 <span class="material-icons">more_vert</span> 
             </button>
+    </div>
+
+    <div class="card-tag-div">
+        {#if showAllTags}
+            {#each tTags as tag}
+                <p class="card-tag-text">{tag}</p>
+            {/each}
+            <p class="card-tag-text tags-show-less" on:click={toggleShowAll}>
+                show Less
+            </p>
+        {:else}
+            {#each tTags.slice(0, 3) as tag}
+                <p class="card-tag-text">{tag}</p>
+            {/each}
+            {#if additionalCount > 0}
+                <p class="card-tag-text tags-show-more" on:click={toggleShowAll}>
+                    +{additionalCount}
+                </p>
+            {/if}
+        {/if}
     </div>
 
     <div class="card-meta">
@@ -397,6 +426,38 @@
         text-align: left;
         word-wrap: break-word;
         word-break: break-word;
+    }
+
+    .card-tag-div{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .card-tag-text{
+        height: 2rem;
+        width: auto;
+        padding: 2px 10px;
+        background-color: #cc00b1;
+        border-radius: 10%;
+        color: #2d2d2d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: -1rem;
+    }
+
+    .tags-show-more {
+    cursor: pointer;
+    background-color: white;
+    color: blue;
+    }
+
+    .tags-show-less {
+        cursor: pointer;
+        background-color: white;
+        color: blue;
+        font-size: 0.8rem;
     }
 
     .card-footer {
@@ -557,9 +618,7 @@
     .card-meta {
         font-size: 0.75rem;
         color: #666;
-        margin-bottom: 0.5rem;
-       
-
+        margin-top: 2rem; 
     }
 
     @media (prefers-color-scheme: dark) {
