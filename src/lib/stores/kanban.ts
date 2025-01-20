@@ -36,6 +36,7 @@ export interface Card {
     order: number;
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
+    tTags?: string[]; //Array of tags pointing to the particular card
     created_at: number;
     aTags?: string[]; // Array of a tags pointing to boards
     trackingKind?: number;
@@ -324,7 +325,7 @@ function createKanbanStore() {
                     }
                     if(!eventToLoad){
                         continue;
-                    }
+                    }                    
                     if(kTag){
                         switch(kTag[1]){
                             case '30302':
@@ -442,6 +443,11 @@ function createKanbanStore() {
         const aTags = eventToLoad.tags
             .filter(t => t[0] === 'a')
             .map(t => t[1]);
+        
+        //Get all t tags
+        const tTags = eventToLoad.tags
+            .filter(t => t[0] === 't')
+            .map(t => t[1]);
 
 
         boardCards.push({
@@ -456,6 +462,7 @@ function createKanbanStore() {
             assignees,
             created_at: eventToLoad.created_at!,
             aTags,
+            tTags,
             trackingRef: trackingRef,
             trackingKind: trackingKind
         });
@@ -545,7 +552,8 @@ function createKanbanStore() {
                     attachments: card.attachments,
                     created_at: cardEvent.created_at!,
                     assignees: card.assignees,
-                    aTags: [aTagPointingToBoard]
+                    aTags: [aTagPointingToBoard],
+                    tTags: [],
                 });
                 newCards.set(boardId, cards);
                 return {
@@ -588,7 +596,7 @@ function createKanbanStore() {
 
     async function updateCard(boardId: string, card: Card, targetIndex?: number) {
         try {
-           
+
             // Create new card event
             const newCardEvent = new NDKEvent(ndk);
             newCardEvent.kind = 30302 as NDKKind;
@@ -606,7 +614,7 @@ function createKanbanStore() {
                 ['title', card.title],
                 ['description', card.description],
                 ['alt', `A card titled ${card.title}`],
-                ['rank', newOrder.toString()],                
+                ['rank', newOrder.toString()],              
             ];
             if(card.status){
                 newCardEvent.tags.push(['s', card.status]);
@@ -616,6 +624,13 @@ function createKanbanStore() {
             if (card.attachments && card.attachments.length > 0) {
                 card.attachments.forEach(url => {
                     newCardEvent.tags.push(['u', url]);
+                });
+            }
+
+            // Add card meta tags
+            if (card.tTags && card.tTags.length > 0) {
+                card.tTags.forEach(tag => {
+                    newCardEvent.tags.push(['t', tag]);
                 });
             }
 
@@ -646,7 +661,8 @@ function createKanbanStore() {
                         order: newOrder,
                         created_at: newCardEvent.created_at!,
                         id: newCardEvent.id,
-                        pubkey: newCardEvent.pubkey                        
+                        pubkey: newCardEvent.pubkey,
+                        tTags: card.tTags                       
                     } : c
                 );
                 newCards.set(boardId, updatedCards);
@@ -654,7 +670,10 @@ function createKanbanStore() {
                     ...state,
                     cards: newCards
                 };
+
+                
             });
+
         } catch (error) {
             console.error('Failed to update card:', error);
             throw error;
