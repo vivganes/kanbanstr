@@ -115,7 +115,6 @@
     }
 
     function addTag() {
-        console.log("Tags = ", tTags);
         if (newTag.trim() && !tTags.includes(newTag)) {
         tTags = [...tTags, newTag.trim()];
         newTag = '';
