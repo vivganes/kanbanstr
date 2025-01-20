@@ -439,9 +439,9 @@
         height: 1.5rem;
         min-width: 2.5rem;
         padding: 2px 10px;
-        background-color: #cc00b1;
+        background-color: #666;
         border-radius: 5px;
-        color: #2d2d2d;
+        color: #fff;
         display: flex;
         align-items: center;
         justify-content: center;
