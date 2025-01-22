@@ -28,9 +28,10 @@
     let debouncedSearchQuery = '';
     let searchTimeout: NodeJS.Timeout;
     let showSortMenu = false;
-    let sortBy = 'created';
+    let sortBy = 'order';
     let sortDirection = 'asc';
     let isCustomSorted = false;
+    let isFilterSelected = false;
 
     onMount(() => {
         const unsubscribe = ndkInstance.store.subscribe(state => {
@@ -139,6 +140,10 @@
             const zapAmountA = a.zapAmount || 0;
             const zapAmountB = b.zapAmount || 0;
             return sortDirection === 'asc' ? zapAmountA - zapAmountB : zapAmountB - zapAmountA;
+        } else if (sortBy === 'order') {
+            const orderA = a.order ?? 0;
+            const orderB = b.order ?? 0;
+            return  sortDirection === 'asc' ? orderA - orderB : orderB - orderA;
         }
         return 0;
     });
@@ -157,9 +162,11 @@
 
     function handleSortChange() {
         isCustomSorted = true;
-        setTimeout(() => {
+        let timeoutId = setTimeout(() => {
             showSortMenu = false;
         }, 5000);
+
+        clearTimeout(timeoutId);
     }
 
     function getSortTooltip(): string {
@@ -211,7 +218,10 @@
                 class:active={showSearch}
                 on:click={() => {
                     showSearch = !showSearch;
-                    if (showSearch) showSortMenu = false;
+                    if (showSearch) {
+                        showSortMenu = false;
+                        isFilterSelected = false;
+                    }
                 }}
                 title="Search cards"
             >
@@ -219,16 +229,15 @@
             </button>
             <button 
                 class="toolbar-btn"
-                class:active={showSortMenu || isCustomSorted}
+                class:active={isFilterSelected}
                 on:click={() => {
                     showSortMenu = !showSortMenu;
+                    isFilterSelected = !isFilterSelected;
                     if (showSortMenu) showSearch = false;
                 }}
                 title={getSortTooltip()}
             >
-                <span class="material-icons">
-                    {isCustomSorted ? (sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'sort'}
-                </span>
+                <span class="material-icons">sort</span>
             </button>
         </div>
         
@@ -268,6 +277,7 @@
                     >
                         <option value="created">Created Date</option>
                         <option value="zaps">Zaps</option>
+                        <option value="order">Order</option>
                     </select>
                     <button 
                         class="sort-direction"
@@ -537,8 +547,8 @@
     }
 
     .sort-select {
-        flex: 1;
         height: 36px;
+        min-width: 200px;
         padding: 0 0.75rem;
         border: 1px solid #ddd;
         border-radius: 4px;
