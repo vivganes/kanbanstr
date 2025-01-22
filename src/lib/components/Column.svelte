@@ -28,7 +28,7 @@
     let debouncedSearchQuery = '';
     let searchTimeout: NodeJS.Timeout;
     let showSortMenu = false;
-    let sortBy = 'created';
+    let sortBy = 'order';
     let sortDirection = 'asc';
     let isCustomSorted = false;
     let isFilterSelected = false;
@@ -218,7 +218,10 @@
                 class:active={showSearch}
                 on:click={() => {
                     showSearch = !showSearch;
-                    if (showSearch) showSortMenu = false;
+                    if (showSearch) {
+                        showSortMenu = false;
+                        isFilterSelected = false;
+                    }
                 }}
                 title="Search cards"
             >
