@@ -42,7 +42,8 @@
     const contextMenuItems = [
         { label: 'Clone as new card', icon: 'content_copy', action: 'clone-as-new-card' },
         { label: 'Track this card in another board', icon: 'track_changes', action: 'track-card' },
-        { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' }
+        { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' },
+        { label: 'Copy event id', icon: 'location_on', action: 'copy-event-id' }
     ];
 
     let tTags = [...(card.tTags || [] )]; 
@@ -131,6 +132,23 @@
             }, 500);
         } catch (error) {
             toastStore.addToast('Failed to copy permalink', 'error');
+        }
+    }
+
+    async function copyNaddr(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        try {
+            await navigator.clipboard.writeText(card.naddr);
+            contextMenuComponent.setItemSuccess('copy-event-id');
+            toastStore.addToast(`Event id ${card.naddr.substring(0,10)}... copied to clipboard`);
+            
+            setTimeout(() => {
+                closeMenu();
+            }, 500);
+        } catch (error) {
+            toastStore.addToast('Failed to copy event id', 'error');
         }
     }
 
@@ -257,6 +275,9 @@
         } 
         else if (action === 'copy-permalink') {
             copyPermalink(event);
+        }
+        else if (action === 'copy-event-id') {
+            copyNaddr(event);
         }
     }
 

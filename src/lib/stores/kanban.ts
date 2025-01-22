@@ -28,6 +28,7 @@ export interface Column {
 
 export interface Card {
     id: string;
+    naddr: string;
     dTag: string;
     pubkey: string;
     title: string;
@@ -243,6 +244,7 @@ function createKanbanStore() {
                     const titleTag = event.tags.find(t => t[0] === 'title');
                     const dTagFullForm = event.tags.find(t => t[0] === 'd');
                     const dTag = dTagFullForm ? dTagFullForm[1] : undefined;
+                    const naddr = event.encode();
                     
                     const assignees = event.tags
                         .filter(t => t[0] === 'zap')
@@ -251,6 +253,7 @@ function createKanbanStore() {
                     cards.push({
                         pubkey: event.pubkey,
                         id: event.id,
+                        naddr: naddr,
                         dTag: dTag!,
                         title: titleTag ? titleTag[1] : 'Untitled Card',
                         description: content.description,
@@ -362,10 +365,12 @@ function createKanbanStore() {
         const subjectTag = eventToLoad.tags.find(t => t[0] === 'subject');
         const altTag = eventToLoad.tags.find(t => t[0] === 'alt');
         const descriptionTag = eventToLoad.tags.find(t => t[0] === 'description');
+        const naddr = event.encode();
         const status = await getStatusOfIssueWithEventId(eventToLoad.id, trackingKind);
 
         boardCards.push({
-            id: event.id,            
+            id: event.id,   
+            naddr: naddr,         
             dTag: originalEventDTag ? originalEventDTag[1]! : event.id,
             pubkey: eventToLoad.pubkey,
             description: '',
@@ -428,6 +433,7 @@ function createKanbanStore() {
         const descTag = eventToLoad.tags.find(t => t[0] === 'description');
         const statusTag = eventToLoad.tags.find(t => t[0] === 's');
         const rankTag = eventToLoad.tags.find(t => t[0] === 'rank');
+        const naddr = event.encode();
 
         // Get attachments from u tags
         const attachments = eventToLoad.tags
@@ -452,6 +458,7 @@ function createKanbanStore() {
 
         boardCards.push({
             id: event.id,
+            naddr:naddr,
             dTag: originalEventDTag ? originalEventDTag[1]! : event.id,
             pubkey: eventToLoad.pubkey,
             title: titleTag ? titleTag[1] : 'Untitled Card',
@@ -543,6 +550,7 @@ function createKanbanStore() {
                 const cards = newCards.get(boardId) || [];
                 cards.push({
                     id: cardEvent.id,
+                    naddr: cardEvent.encode(),
                     dTag: cardIdentifier,
                     pubkey: cardEvent.pubkey,
                     title: card.title,
@@ -658,6 +666,7 @@ function createKanbanStore() {
                 const updatedCards = cards.map(c => 
                     c.dTag === card.dTag ? {
                         ...card,
+                        naddr: newCardEvent.encode(),
                         order: newOrder,
                         created_at: newCardEvent.created_at!,
                         id: newCardEvent.id,
