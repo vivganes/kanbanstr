@@ -38,11 +38,27 @@ export interface Card {
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
     tTags?: string[]; //Array of tags pointing to the particular card
+    linkedCards?: CardLink[]; //Array of links originating from the particular card
     created_at: number;
     aTags?: string[]; // Array of a tags pointing to boards
     trackingKind?: number;
     trackingRef?: { boardATag?: string, cardDTag?: string, eventId?:string };
     content?: string;
+}
+
+export interface CardLink{
+    boardPubKey: string;
+    boardDTag: string;
+    boardTitle?: string;
+    cardDTag: string;
+    linkType: LinkType;
+    cardTitle?: string;
+    cardStatus?: string;
+}
+
+interface LinkType{
+    forwardLabel: string;
+    backwardLabel: string;
 }
 
 interface KanbanState {
@@ -426,9 +442,40 @@ function createKanbanStore() {
         }
     }
 
+    async function getSingleCard(boardPubKey:string, boardDTag:string, cardId:string): Promise<Card|void>{
+        // construct `a` tag from boardPubKey and boardDTag
+        const aTag = `30301:${boardPubKey}:${boardDTag}`;
+        // fetch card event
+        const cardFilter: NDKFilter = {
+            kinds: [30302 as NDKKind],
+            '#d': [cardId],
+            '#a': [aTag]
+        };
+        const cardEvents = await ndk.fetchEvents(cardFilter);
+        if (!cardEvents) {
+            console.error('Card not found');
+            return;
+        }
+        const latestCardEvent = Array.from(cardEvents).reduce((a, b) => a.created_at! > b.created_at! ? a : b);
+        const titleTag = latestCardEvent.tags.find(t => t[0] === 'title');
+        const statusTag = latestCardEvent.tags.find(t => t[0] === 's');
+        const descriptionTag = latestCardEvent.tags.find(t => t[0] === 'description');
+        return {
+            id: latestCardEvent.id,
+            naddr: latestCardEvent.encode(),
+            dTag: cardId,
+            pubkey: latestCardEvent.pubkey,
+            title: titleTag ? titleTag[1] : 'Untitled Card',
+            description: descriptionTag ? descriptionTag[1] : '',
+            status: statusTag ? statusTag[1] : 'To Do',
+            order: 0,
+            created_at: latestCardEvent.created_at!
+        }
+    }
+
     
 
-    function loadKanbanCardToBoard(eventToLoad: NDKEvent, boardCards: Card[], event: NDKEvent, originalEventDTag: NDKTag | undefined, trackingRef: any, trackingKind: number | undefined) {
+    async function loadKanbanCardToBoard(eventToLoad: NDKEvent, boardCards: Card[], event: NDKEvent, originalEventDTag: NDKTag | undefined, trackingRef: any, trackingKind: number | undefined) {
         const titleTag = eventToLoad.tags.find(t => t[0] === 'title');
         const descTag = eventToLoad.tags.find(t => t[0] === 'description');
         const statusTag = eventToLoad.tags.find(t => t[0] === 's');
@@ -455,6 +502,56 @@ function createKanbanStore() {
             .filter(t => t[0] === 't')
             .map(t => t[1]);
 
+        //Get all refs/link tags
+        const refsLinkTags = await eventToLoad.tags
+            .filter(t => t[0] === 'refs/link')
+            .map(async t => {
+                const [boardPubKey, boardDTag, cardDTag] = t[1].split(':');
+                const [forwardLabel, backwardLabel] = t.slice(2);
+                //get board title
+                const boardFilter: NDKFilter = {
+                    kinds: [30301 as NDKKind],
+                    '#d': [boardDTag]
+                };
+                const boardEvents = await ndk.fetchEvents(boardFilter);
+                if (!boardEvents) {
+                    console.error('Board not found');
+                    return;
+                }
+                const boardEvent = Array.from(boardEvents)[0];
+                const titleTag = boardEvent.tags.find(t => t[0] === 'title');
+                const boardTitle = titleTag ? titleTag[1] : 'Untitled Board';
+                //get card title and status
+                const cardFilter: NDKFilter = {
+                    kinds: [30302 as NDKKind],
+                    '#d': [cardDTag]
+                };
+                const cardEvents = await ndk.fetchEvents(cardFilter);
+                if (!cardEvents) {
+                    console.error('Card not found');
+                    return;
+                }
+                const latestCardEvent = Array.from(cardEvents).reduce((a, b) => a.created_at! > b.created_at! ? a : b);
+                const cardTitleTag = latestCardEvent.tags.find(t => t[0] === 'title');
+                const cardStatusTag = latestCardEvent.tags.find(t => t[0] === 's');
+                const cardTitle = cardTitleTag ? cardTitleTag[1] : 'Untitled Card';
+                const cardStatus = cardStatusTag ? cardStatusTag[1] : 'To Do';
+
+
+
+                return {
+                    boardPubKey,
+                    boardDTag,
+                    cardDTag,
+                    linkType: {
+                        forwardLabel,
+                        backwardLabel
+                    },
+                    boardTitle,
+                    cardTitle,
+                    cardStatus
+                };
+            });
 
         boardCards.push({
             id: event.id,
@@ -471,7 +568,8 @@ function createKanbanStore() {
             aTags,
             tTags,
             trackingRef: trackingRef,
-            trackingKind: trackingKind
+            trackingKind: trackingKind,
+            linkedCards: refsLinkTags
         });
     }
 
@@ -538,6 +636,13 @@ function createKanbanStore() {
                 card.assignees.forEach(assignee => {
                     cardEvent.tags.push(['zap', assignee]);
                     cardEvent.tags.push(['p',assignee]);
+                });
+            }
+
+            // Add card links as refs/link tags
+            if (card.linkedCards && card.linkedCards.length > 0) {
+                card.linkedCards.forEach(link => {
+                    cardEvent.tags.push(['refs/link', `${link.boardPubKey}:${link.boardDTag}:${link.cardDTag}`, link.linkType.forwardLabel, link.linkType.backwardLabel]);
                 });
             }
 
@@ -654,6 +759,13 @@ function createKanbanStore() {
             if (card.aTags && card.aTags.length > 0) {
                 card.aTags.forEach(aTag => {
                     newCardEvent.tags.push(['a', aTag]);
+                });
+            }
+
+             // Add card links as refs/link tags
+             if (card.linkedCards && card.linkedCards.length > 0) {
+                card.linkedCards.forEach(link => {
+                    newCardEvent.tags.push(['refs/link', `${link.boardPubKey}:${link.boardDTag}:${link.cardDTag}`, link.linkType.forwardLabel, link.linkType.backwardLabel]);
                 });
             }
 
@@ -1039,7 +1151,8 @@ function createKanbanStore() {
         hasNDK,
         canEditCards,
         cloneCardToBoard,
-        trackCardInAnotherBoard
+        trackCardInAnotherBoard,
+        getSingleCard
     };
 }
 
