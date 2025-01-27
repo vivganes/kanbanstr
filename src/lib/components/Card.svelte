@@ -43,6 +43,7 @@
         { label: 'Clone as new card', icon: 'content_copy', action: 'clone-as-new-card' },
         { label: 'Track this card in another board', icon: 'track_changes', action: 'track-card' },
         { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' },
+        {label: 'Copy linking string', icon: 'add_link', action: 'copy-linking-string'},
         { label: 'Copy event id', icon: 'location_on', action: 'copy-event-id' }
     ];
 
@@ -116,9 +117,24 @@
         return user;
     }
 
+    function copyLinkString(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const linkString = `${boardPubkey}:${boardId}:${card.dTag}`;
+        navigator.clipboard.writeText(linkString);
+        contextMenuComponent.setItemSuccess('copy-linking-string');
+        toastStore.addToast('Linking string copied to clipboard');
+        setTimeout(() => {
+                closeMenu();
+        }, 500);
+    }
+
     async function copyPermalink(event) {
         event.preventDefault();
         event.stopPropagation();
+
+
 
         const permalink = `${window.location.origin}/#/board/${boardPubkey}/${boardId}/card/${card.dTag}`;
         
@@ -278,6 +294,8 @@
         }
         else if (action === 'copy-event-id') {
             copyNaddr(event);
+        } else if (action === 'copy-linking-string') {
+            copyLinkString(event);
         }
     }
 
@@ -411,7 +429,7 @@
 </div>
 
 {#if showDetails}
-    <CardDetails {card} {boardId} {isUnmapped} onClose={closeDetails} readOnly={readOnly || (card.trackingRef !== undefined)}/>
+    <CardDetails {card} {boardId} {boardPubkey} {isUnmapped} onClose={closeDetails} readOnly={readOnly || (card.trackingRef !== undefined)}/>
 {/if}
 
 {#if zapError}

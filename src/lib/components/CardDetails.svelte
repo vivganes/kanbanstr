@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { Card } from '../stores/kanban';
+    import type { Card, CardLink } from '../stores/kanban';
     import { kanbanStore } from '../stores/kanban';
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
@@ -11,6 +11,7 @@
     import { toastStore } from '../stores/toast';
 
     export let card: Card;
+    export let boardPubkey: string;
     export let boardId: string;
     export let onClose: () => void;
     export let isUnmapped: boolean = false;
@@ -24,6 +25,7 @@
     let attachments = [...(card.attachments || [])];
     let newTag = '';
     let tTags = [...(card.tTags || [] )];
+    let linkedCardTags = [...(card.linkedCards || [])];
     let newAssignee = '';
     let assignees = [...(card.assignees || [])];
     let editor: Editor;
@@ -35,12 +37,14 @@
     let currentAssigneeDisplay: string | null = null;
     let isLoadingAssignee = false;
     let assigneeError: string | null = null;
-    let showBoardSelector = false;
     let boardsICanCreateCardsIn: KanbanBoard[] = [];
     let selectedBoardId: string = '';
     let loadingBoards = true;
     let cloneSuccess = false;
     let isCloning = false;
+    let newLinkString = '';
+    let selectedLinkType: 'parent-child' | 'blocked-by' = 'parent-child';
+    let linkError: string | null = null;
 
     onMount(async () => {
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
@@ -103,10 +107,22 @@
 
     $: canEditCard, changeMarkdownEditability();
 
+
     function addAttachment() {
         if (newAttachment.trim()) {
             attachments = [...attachments, newAttachment.trim()];
             newAttachment = '';
+        }
+    }
+
+    function getForwardAndBackwardLinkLabels(linkType: string): [string, string] {
+        switch (linkType) {
+            case 'parent-child':
+                return ['is a child of', 'is a parent of'];
+            case 'blocked-by':
+                return ['is blocked by', 'blocks'];
+            default:
+            return ['is a child of', 'is a parent of'];
         }
     }
 
@@ -181,7 +197,8 @@
                 description: description.trim(),
                 attachments,
                 tTags,
-                assignees
+                assignees,
+                linkedCards: linkedCardTags
             });
 
             onClose();
@@ -218,6 +235,64 @@
             editor.setEditable(canEditCard);
         }
     } 
+
+    function copyLinkString() {
+        const linkString = `${boardPubkey}:${boardId}:${card.dTag}`;
+        navigator.clipboard.writeText(linkString);
+        toastStore.addToast('Linking string copied to clipboard');
+    }
+
+    
+
+    function validateLinkString(linkString: string): boolean {
+        // Format should be: pubkey:boardDTag:cardDTag
+        const parts = linkString.split(':');
+        console.log(parts);
+        return parts.length === 3 && parts.every(part => part.length > 0);
+    }
+    
+
+    function isSameLinkWithSameLinkTypeAlreadyPresent(linkString: string, linkType: string): boolean {
+        return linkedCardTags.some(link => {
+            return link.boardPubKey === linkString.split(':')[0] && 
+                link.boardDTag === linkString.split(':')[1] && 
+                link.cardDTag === linkString.split(':')[2] &&
+                link.linkType.forwardLabel === getForwardAndBackwardLinkLabels(linkType)[0];
+        });        
+    }
+    
+
+    async function addLink() {
+        if (newLinkString.trim() && selectedLinkType &&  !isSameLinkWithSameLinkTypeAlreadyPresent(newLinkString, selectedLinkType)) {
+            if (validateLinkString(newLinkString)) {
+
+                const labels = getForwardAndBackwardLinkLabels(selectedLinkType);
+                const card = await kanbanStore.getSingleCard(newLinkString.split(':')[0],newLinkString.split(':')[1], newLinkString.split(':')[2])
+                if(!card){
+                    linkError = 'Card not found';
+                    return;
+                }
+                const newLinkedCard: CardLink = {
+                    boardPubKey: newLinkString.split(':')[0],
+                    boardDTag: newLinkString.split(':')[1],
+                    cardDTag: newLinkString.split(':')[2],
+                    linkType: {
+                        forwardLabel: labels[0],
+                        backwardLabel: labels[1]
+                    },
+                    // get card title and status
+                    cardTitle: card.title,
+                    cardStatus: card.status
+                    
+                }
+                linkedCardTags = [...linkedCardTags, newLinkedCard];
+                newLinkString = '';
+                linkError = null;
+            } else {
+                linkError = 'Invalid linking string';
+            }
+        }
+    }
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -391,6 +466,64 @@
                     </button>
                 </div>
                 {/if}
+            </div>
+
+            <div class="section">
+                <label>Card Links</label>
+                <div class="card-links">
+                    <button class="copy-link-btn" on:click={copyLinkString}>
+                        Copy Link String
+                    </button>
+
+                    {#if (linkedCardTags && linkedCardTags.length > 0)}
+                        <div class="links-list">
+                            {#each linkedCardTags as link, i}
+                                <div class="link-item">
+                                    <div class="link-target">
+                                        {link.linkType.forwardLabel} 
+                                        <a href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer">
+                                            {link.cardTitle} - {link.cardStatus}
+                                        </a>
+                                    </div>
+                                    <button type="button" class="remove-btn" on:click={() => linkedCardTags = linkedCardTags.filter((_, j) => i !== j)}>
+                                        &times;
+                                    </button>
+                                </div>
+                            {/each}
+                                                   
+                        </div>
+                    {/if}
+
+                    {#if canEditCard}
+                        <div class="add-link">
+                            <div class="link-type-select">
+                                <select bind:value={selectedLinkType}>
+                                    <option value="parent-child">Child of</option>
+                                    <option value="blocked-by">Blocked By</option>
+                                </select>
+                            </div>
+                            <div class="link-input-wrapper">
+                                <input
+                                    bind:value={newLinkString}
+                                    placeholder="Paste the linking string copied from another card here"
+                                    type="text"
+                                />
+                                {#if linkError}
+                                    <div class="error-message">{linkError}</div>
+                                {/if}
+                            </div>
+                            <button 
+                                type="button" 
+                                disabled={!newLinkString.trim()}
+                                on:click={addLink}
+                            >
+                                Add Link
+                            </button>
+                        </div>
+                    {/if}
+                </div>
             </div>
 
             <div class="section">
@@ -867,6 +1000,88 @@
     @media (prefers-color-scheme: dark) {
         .loading-state {
             color: #ccc;
+        }
+    }
+
+    .card-links {
+        margin-top: 0.5rem;
+    }
+
+    .copy-link-btn {
+        margin-bottom: 1rem;
+        background: #f4f5f7;
+        color: #42526e;
+    }
+
+    .links-list {
+        margin: 1rem 0;
+    }
+
+    .link-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        background: #f5f5f5;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+    }
+
+    .link-target {
+        font-family: monospace;
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .add-link {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .link-type-select {
+        min-width: 150px;
+    }
+
+    .link-type-select select {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .link-input-wrapper {
+        flex: 1;
+        position: relative;
+    }
+
+    .link-input-wrapper input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .copy-link-btn {
+            background: #2d2d2d;
+            color: #fff;
+        }
+
+        .link-item {
+            background: #2d2d2d;
+        }
+
+        .link-target {
+            color: #999;
+        }
+
+        .link-type-select select,
+        .link-input-wrapper input {
+            background: #1d1d1d;
+            border-color: #444;
+            color: #fff;
         }
     }
 </style> 
