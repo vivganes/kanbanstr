@@ -87,15 +87,21 @@
     }
 
     async function addAssignee() {
-        if (newAssignee.trim() && !assignees.includes(newAssignee.trim())) {
+        if (newAssignee.trim()) {
             try {
                 const hexPubkey = await resolveIdentifier(newAssignee.trim());
+                if (assignees.includes(hexPubkey)) {
+                    errorMessage = "This user is already assigned to the card";
+                    setTimeout(() => errorMessage = null, 3000);
+                    return;
+                }
                 assignees = [...assignees, hexPubkey];
                 newAssignee = '';
                 currentAssigneeDisplay = null;
             } catch (error) {
                 console.error('Error in addAssignee:', error);
                 errorMessage = "Invalid identifier or unable to fetch user profile";
+                setTimeout(() => errorMessage = null, 3000);
             }
         }
     }
@@ -154,7 +160,7 @@
             <div class="form-group">
                 <label>Assignees</label>
                 <div class="assignees-list">
-                    {#each assignees as assignee, i}
+                    {#each [...new Set(assignees)] as assignee, i}
                         <div class="assignee-item">
                             {#await getUserDisplayName(assignee)}
                                 <span>Loading...</span>

@@ -25,7 +25,7 @@
     let newTag = '';
     let tTags = [...(card.tTags || [] )];
     let newAssignee = '';
-    let assignees = [...(card.assignees || [])];
+    let assignees = [...new Set(card.assignees || [])];
     let editor: Editor;
     let editorElement: HTMLElement;
     let isSaving = false;
@@ -150,9 +150,14 @@
     }
 
     async function addAssignee() {
-        if (newAssignee.trim() && !assignees.includes(newAssignee.trim())) {
+        if (newAssignee.trim()) {
             try {
                 const hexPubkey = await resolveIdentifier(newAssignee.trim());
+                if (assignees.includes(hexPubkey)) {
+                    error = "This user is already assigned to the card";
+                    setTimeout(() => error = null, 3000);
+                    return;
+                }
                 assignees = [...assignees, hexPubkey];
                 newAssignee = '';
                 currentAssigneeDisplay = null;
@@ -278,7 +283,7 @@
             <div class="section">
                 <label>Assignees</label>
                 <div class="assignees-list">
-                    {#each assignees as assignee, i}
+                    {#each [...new Set(assignees)] as assignee, i}
                         <div class="assignee-item">
                             {#await getUserDisplayName(assignee)}
                                 <span>Loading...</span>

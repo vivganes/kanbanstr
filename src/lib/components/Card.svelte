@@ -303,11 +303,10 @@
         <h4 on:click={openDetails}>{card.title}</h4>
         <div class="card-actions">
             {#if card.assignees && card.assignees.length > 0}
-            {#each card.assignees as assignee}
-                        <UserAvatar pubkey={assignee} size={24} prefix="Assigned to: "/>
-            {/each}
+                {#each [...new Set(card.assignees)] as assignee}
+                    <UserAvatar pubkey={assignee} size={24} prefix="Assigned to: "/>
+                {/each}
             {/if}
-            
         </div>
         <div>
             <!-- show icon if there is card has trackingRef -->
