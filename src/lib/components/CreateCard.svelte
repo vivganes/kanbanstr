@@ -87,15 +87,21 @@
     }
 
     async function addAssignee() {
-        if (newAssignee.trim() && !assignees.includes(newAssignee.trim())) {
+        if (newAssignee.trim()) {
             try {
                 const hexPubkey = await resolveIdentifier(newAssignee.trim());
-                assignees = [...assignees, hexPubkey];
-                newAssignee = '';
-                currentAssigneeDisplay = null;
+                if (!assignees.includes(hexPubkey)) {
+                    assignees = [...assignees, hexPubkey];
+                    newAssignee = '';
+                    currentAssigneeDisplay = null;
+                } else {
+                    errorMessage = "This user is already assigned to the card";
+                    setTimeout(() => errorMessage = null, 3000);
+                }
             } catch (error) {
                 console.error('Error in addAssignee:', error);
                 errorMessage = "Invalid identifier or unable to fetch user profile";
+                setTimeout(() => errorMessage = null, 3000);
             }
         }
     }

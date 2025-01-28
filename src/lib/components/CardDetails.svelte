@@ -137,12 +137,17 @@
     }
 
     async function addAssignee() {
-        if (newAssignee.trim() && !assignees.includes(newAssignee.trim())) {
+        if (newAssignee.trim()) {
             try {
                 const hexPubkey = await resolveIdentifier(newAssignee.trim());
-                assignees = [...assignees, hexPubkey];
-                newAssignee = '';
-                currentAssigneeDisplay = null;
+                if (!assignees.includes(hexPubkey)) {
+                    assignees = [...assignees, hexPubkey];
+                    newAssignee = '';
+                    currentAssigneeDisplay = null;
+                } else {
+                    error = "This user is already assigned to the card";
+                    setTimeout(() => error = null, 3000);
+                }
             } catch (error) {
                 console.error('Error in addAssignee:', error);
                 error = "Invalid identifier or unable to fetch user profile";
@@ -264,7 +269,7 @@
             <div class="section">
                 <label>Assignees</label>
                 <div class="assignees-list">
-                    {#each assignees as assignee, i}
+                    {#each [...new Set(assignees)] as assignee, i}
                         <div class="assignee-item">
                             {#await getUserDisplayName(assignee)}
                                 <span>Loading...</span>
