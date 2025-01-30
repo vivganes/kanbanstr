@@ -4,6 +4,7 @@
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
     import type { NDKKind } from '@nostr-dev-kit/ndk';
+    import type { NDKKind } from '@nostr-dev-kit/ndk';
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
@@ -50,15 +51,15 @@
     let loadingBoards = true;
     let cloneSuccess = false;
     let isCloning = false;
-    let selectedBoard: KanbanBoard | null = null; 
-    let maintainers: MaintainersListProps[] = [];
-    let loadingMaintainers = false;
-    let errorLoadingMaintainers: string | null = null;
-
     let newLinkString = '';
     let selectedLinkType: 'parent-child' | 'blocked-by' = 'parent-child';
     let linkError: string | null = null;
     let loadingLinks: boolean = false;
+    let selectedBoard: KanbanBoard | null = null; 
+    let maintainers: string[] = [];
+    let loadingMaintainers = false;
+    let errorLoadingMaintainers: string | null = null;
+
 
 
     onMount(async () => {
@@ -433,6 +434,42 @@
         incomingLinks = card.incomingLinks = await kanbanStore.getIncomingLinkedCards(boardPubkey, boardId, card.dTag);
         loadingLinks = false;
     }
+
+    async function loadBoardAndMaintainers(boardId: string) {
+        loadingMaintainers = true;
+        errorLoadingMaintainers = null;
+        try {
+            const filter = {
+                kinds: [30301 as NDKKind],
+                '#d': [boardId]
+            };
+            const events = await ndkInstance.ndk?.fetchEvents(filter);
+            if (!events || events.size === 0) {
+                throw new Error("Board not found");
+            }
+            const boardEvent = Array.from(events)[0];
+            selectedBoard = await kanbanStore.loadBoardByPubkeyAndId(boardEvent.pubkey, boardId); // Load full board details
+            if (selectedBoard) {
+                maintainers = selectedBoard.maintainers || [];
+                console.log("Maintainers = ", maintainers);
+            } else {
+                errorLoadingMaintainers = "Board not found";
+            }
+        } catch (error) {
+            errorLoadingMaintainers = error instanceof Error ? error.message : 'Error loading maintainers';
+            console.error(errorLoadingMaintainers);
+        } finally {
+            loadingMaintainers = false;
+        }
+    }
+
+    function updateAssignees() {
+        let ownerNpub = card.pubkey;
+        if (!assignees.includes(ownerNpub)) {
+            assignees = [...assignees, ownerNpub];
+        }
+    }
+
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -516,21 +553,21 @@
                 </div>
                 {#if canEditCard}
                 <div class="add-assignee">
-                    <div class="assignee-select-wrapper">
-                        <select 
-                            bind:value={newAssignee} 
-                            disabled={!canEditCard} 
-                            on:change={() => validateAssignee(newAssignee)}
-                            class="assignee-select-box">
-                            <option  value="" disabled selected>Select Assignee</option>
-                            {#if loadingMaintainers}
-                                <option value="">Loading maintainers...</option>
-                            {:else}
-                                {#each maintainers as maintainer}
-                                    <option value={maintainer.nPubKey}>{maintainer.nPubName}</option>
-                                {/each}
-                            {/if}
-                        </select>
+                    <div class="assignee-input-wrapper">
+                        <input
+                            bind:value={newAssignee}
+                            disabled = {!canEditCard}
+                            placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
+                            on:input={() => validateAssignee(newAssignee)}
+                            on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
+                        />
+                        {#if isLoadingAssignee}
+                            <div class="validation-feedback">Loading...</div>
+                        {:else if currentAssigneeDisplay}
+                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
+                        {:else if assigneeError}
+                            <div class="validation-feedback error">{assigneeError}</div>
+                        {/if}
                     </div>
                     <button 
                         type="button" 
@@ -1104,6 +1141,14 @@
         border-radius: 4px; 
     }
 
+    .assignee-select-box {
+        width: 100%; 
+        padding: 8px; 
+        font-size: 14px; 
+        border: 1px solid #ccc;
+        border-radius: 4px; 
+    }
+
     .add-assignee {
         display: flex;
         gap: 0.5rem;
@@ -1125,6 +1170,19 @@
     .add-assignee button:disabled {
         background: #ccc;
         cursor: not-allowed;
+    }
+
+    .assignee-input-wrapper input {
+        height: 36px;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .validation-feedback.error {
+        color: #dc3545;
     }
 
     .board-selector {
