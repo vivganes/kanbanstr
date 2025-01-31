@@ -4,7 +4,7 @@
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
     import { Markdown } from 'tiptap-markdown';
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
     import type { KanbanBoard } from '../stores/kanban';
@@ -39,6 +39,7 @@
     let isLoadingAssignee = false;
     let assigneeError: string | null = null;
     let boardsICanCreateCardsIn: KanbanBoard[] = [];
+    let board: KanbanBoard;
     let selectedBoardId: string = '';
     let loadingBoards = true;
     let cloneSuccess = false;
@@ -48,6 +49,7 @@
     let linkError: string | null = null;
 
     onMount(async () => {
+        board = getContext('board');
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -199,6 +201,7 @@
             // separate the deleted outgoing  links
             const oldOutgoingLinks = card.outgoingLinks || [];
             const currentOutgoingLinks = outgoingLinks;
+            const newOutgoingLinks = currentOutgoingLinks.filter(link => !oldOutgoingLinks.some(l => l.boardPubKey === link.boardPubKey && l.boardDTag === link.boardDTag && l.cardDTag === link.cardDTag));
             const deletedOutgoingLinks = oldOutgoingLinks.filter(link => !currentOutgoingLinks.some(l => l.boardPubKey === link.boardPubKey && l.boardDTag === link.boardDTag && l.cardDTag === link.cardDTag));
 
             await kanbanStore.updateCard(boardId, {
@@ -213,10 +216,11 @@
             });
 
             //update newly linked card's incoming links in local state
-            for (let link of outgoingLinks) {
+            for (let link of newOutgoingLinks) {
                 await kanbanStore.updateStateWithIncomingLinkToACard(link.boardPubKey, link.boardDTag, link.cardDTag, {
                     boardPubKey: boardPubkey,
                     boardDTag: boardId,
+                    boardTitle: board.title,
                     cardDTag: card.dTag,
                     linkType: {
                         forwardLabel: link.linkType.forwardLabel,
@@ -234,6 +238,7 @@
                     await kanbanStore.updateStateWithDeletedOutgoingLinkFromACard(link.boardPubKey, link.boardDTag, link.cardDTag, {
                         boardPubKey: boardPubkey,
                         boardDTag: boardId,
+                        boardTitle: board.title,
                         cardDTag: card.dTag,
                         linkType: {
                             forwardLabel: link.linkType.forwardLabel,
@@ -327,8 +332,8 @@
                     },
                     // get card title and status
                     cardTitle: card.title,
-                    cardStatus: card.status
-                    
+                    cardStatus: card.status,
+                    boardTitle: card.boardTitle                    
                 }
                 outgoingLinks = [...outgoingLinks, newLinkedCard];
                 newLinkString = '';
@@ -337,6 +342,21 @@
                 linkError = 'Invalid linking string';
             }
         }
+    }
+
+    function deleteOutgoingLink(outgoingLink: CardLink) {
+        outgoingLinks = outgoingLinks.filter(link => link !== outgoingLink);
+    }
+
+    function groupByLinkLabel(links: CardLink[], labelType: 'forwardLabel'|'backwardLabel') {
+        return links.reduce((groups, link) => {
+            const label = link.linkType[labelType];
+            if (!groups[label]) {
+                groups[label] = [];
+            }
+            groups[label].push(link);
+            return groups;
+        }, {} as Record<string, CardLink[]>);
     }
 </script>
 
@@ -514,48 +534,77 @@
             </div>
 
             <div class="section">
-                <label>Card Links</label>
+                <h3>Card Links</h3>
                 <div class="card-links">
-
-                    {#if (outgoingLinks && outgoingLinks.length > 0)}
                     <h4>Outgoing links</h4>
-                        <div class="links-list">
-                            {#each outgoingLinks as link, i}
-                                <div class="link-item">
-                                    <div class="link-target">
-                                        {link.linkType.forwardLabel} 
-                                        <a href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer">
-                                            {link.cardTitle} - {link.cardStatus}
-                                        </a>
-                                    </div>
-                                    <button type="button" class="remove-btn" on:click={() => outgoingLinks = outgoingLinks.filter((_, j) => i !== j)}>
-                                        &times;
-                                    </button>
+                    {#if (outgoingLinks && outgoingLinks.length > 0)}                    
+                    <div class="links-list">
+                        {#each Object.entries(groupByLinkLabel(outgoingLinks, 'forwardLabel')) as [forwardLabel, links]}
+                            <div class="link-group">
+                                <h5 class="link-group-label">This card {forwardLabel}</h5>
+                                <div class="linked-cards">
+                                    {#each links as link, i}
+                                        <div class="linked-card">
+                                            <div class="linked-card-content">
+                                                <a 
+                                                    href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    class="linked-card-title"
+                                                >
+                                                    {link.cardTitle}
+                                                </a>
+                                                <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
+                                                <button 
+                                                    type="button" 
+                                                    class="remove-link-btn" 
+                                                    title="Remove this outgoing link"
+                                                    on:click={() => deleteOutgoingLink(link)}
+                                                >
+                                                    &times;
+                                                </button>
+                                            </div>
+                                            <div class="linked-card-board">Board: {link.boardTitle}</div>
+                                        </div>
+                                    {/each}
                                 </div>
-                            {/each}
-                                                   
-                        </div>
+                            </div>
+                        {/each}
+                    </div>
+                    {:else}
+                    No outgoing links
                     {/if}
 
-                    {#if (incomingLinks && incomingLinks.length > 0)}
                     <h4>Incoming links</h4>
+                    {#if (incomingLinks && incomingLinks.length > 0)}                    
                         <div class="links-list">
-                            {#each incomingLinks as link, i}
-                                <div class="link-item">
-                                    <div class="link-target">
-                                        {link.linkType.backwardLabel} 
-                                        <a href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer">
-                                            {link.cardTitle} - {link.cardStatus}
-                                        </a>
+                            {#each Object.entries(groupByLinkLabel(incomingLinks, 'backwardLabel')) as [backwardLabel, links]}
+                                <div class="link-group">
+                                    <h5 class="link-group-label">This card {backwardLabel}</h5>
+                                    <div class="linked-cards">
+                                        {#each links as link}
+                                        <div class="linked-card">
+                                            <div class="linked-card-content">
+                                                <a 
+                                                    href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    class="linked-card-title"
+                                                >
+                                                    {link.cardTitle}
+                                                </a>
+                                                <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
+                                                
+                                            </div>
+                                            <div class="linked-card-board">Board: {link.boardTitle}</div>
+                                        </div>
+                                        {/each}
                                     </div>
                                 </div>
                             {/each}
-                                                   
                         </div>
+                    {:else}
+                    No incoming links
                     {/if}
 
                     {#if canEditCard}
@@ -1118,22 +1167,14 @@
     }
 
     .link-input-wrapper input {
-        width: 100%;
+        width: 95%;
         padding: 0.5rem;
         border: 1px solid #ddd;
         border-radius: 4px;
     }
 
     @media (prefers-color-scheme: dark) {
-        .copy-link-btn {
-            background: #2d2d2d;
-            color: #fff;
-        }
-
-
-        .link-target {
-            color: #999;
-        }
+       
 
         .link-type-select select,
         .link-input-wrapper input {
@@ -1141,5 +1182,90 @@
             border-color: #444;
             color: #fff;
         }
+    }
+
+    .link-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .link-group-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin: 0.5rem 0;
+        font-weight: 500;
+    }
+
+    .linked-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .linked-card {
+        display: flex;
+        flex-direction: column;
+        padding: 0.75rem;
+        background: #e5eef8;
+        border-radius: 4px;
+        text-decoration: none;
+        color: inherit;
+        border: 1px solid #242424;
+        transition: all 0.2s ease;
+    }
+
+    .linked-card:hover {
+        background: #c6a4e9;
+        transform: translateX(2px);
+    }
+
+    .linked-card-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .linked-card-content a {
+        text-decoration: none;
+        color: inherit;
+        flex: 1;
+    }
+
+    .linked-card-content a:hover {
+        text-decoration: underline;
+    }
+
+    .linked-card-title {
+        font-weight: 500;
+        flex: 1;
+    }
+
+    .linked-card-status {
+        font-size: 0.8rem;
+        color: #012d6e;
+        text-transform: uppercase;
+        padding: 0.25rem 0.5rem;
+        background: #ffffff;
+        border-radius: 12px;
+        white-space: nowrap;
+    }
+
+    .linked-card-board {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 0.25rem;
+    }
+
+    
+
+    .remove-link-btn {
+        background: none;
+        border: none;
+        color: #ff4444;
+        cursor: pointer;
+        padding: 0.25rem;
+        font-size: 1.2rem;
+        transition: opacity 0.2s ease;
+        line-height: 1;
     }
 </style> 

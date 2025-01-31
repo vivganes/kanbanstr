@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, setContext } from 'svelte';
+    import { getContext, onMount, setContext } from 'svelte';
     import type { KanbanBoard, Card } from '../stores/kanban';
     import Column from './Column.svelte';
     import { kanbanStore } from '../stores/kanban';
@@ -36,6 +36,10 @@
     let editedMaintainers: string[] = [];
 
     onMount(() => {
+
+        if(board){
+            setContext('board', board);
+        }
         const ndkUnsubscribe = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -46,6 +50,7 @@
             const boardWithCurrentID = boardState.find(b => b.id === board.id);        
             if (boardWithCurrentID) {
                 board = boardWithCurrentID;
+                setContext('board', board);
                 if(board.needsMigration){
                     needsMigration = true;
                 }
