@@ -127,6 +127,32 @@ This allows the automatic movement of a card (like a Git issue) across different
 
 If the tracked event does not have an `s` tag, then tracker card event's `s` tag is shown as the status of the card.
 
+### Linking a card to another card
+
+To establish relationships like parent-child, blocked by, etc, we need the possibility link a card to another card using a relationship.
+
+In order to link any card to an existing card, we add a `refs/link` tag to it with the following format
+
+```javascript
+['refs/link','<target-board-creator-pubkey>:<target-board-d-identifier>:<linked-card-d-identifier>','link label','link label for the reverse direction']
+```
+
+For example, to designate a card as a child of another card, you could add the tag
+
+```javascript
+['refs/link','<board-of-parent-card-creator-pubkey>:<board-of-parent-card-d-identifier>:<parent-card-d-identifier>','is a child of','is a parent of']
+```
+
+In order to say that the current card is blocked by another card, you could add the tag
+
+```javascript
+['refs/link','<board-of-blocker-card-creator-pubkey>:<board-of-blocker-card-d-identifier>:<blocker-card-d-identifier>','is blocked by','blocks']
+```
+
+Clients MAY show easy drop-downs to designate the link labels so that the users don't have to type it.
+
+
+
 ### Event Kinds
 
 - 30301: Kanban Board Definition
