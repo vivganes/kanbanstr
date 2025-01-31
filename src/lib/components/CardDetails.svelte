@@ -17,6 +17,11 @@
     export let isUnmapped: boolean = false;
     export let readOnly: boolean = false;
 
+    interface MaintainersListProps {
+        nPubKey: string;
+        nPubName: string;
+    }
+
 
     let title = card.title;
     let status = card.status;
@@ -43,7 +48,7 @@
     let cloneSuccess = false;
     let isCloning = false;
     let selectedBoard: KanbanBoard | null = null; 
-    let maintainers: string[] = [];
+    let maintainers: MaintainersListProps[] = [];
     let loadingMaintainers = false;
     let errorLoadingMaintainers: string | null = null;
 
@@ -248,10 +253,18 @@
                 throw new Error("Board not found");
             }
             const boardEvent = Array.from(events)[0];
-            selectedBoard = await kanbanStore.loadBoardByPubkeyAndId(boardEvent.pubkey, boardId); // Load full board details
+            selectedBoard = await kanbanStore.loadBoardByPubkeyAndId(boardEvent.pubkey, boardId);
             if (selectedBoard) {
-                maintainers = selectedBoard.maintainers || [];
-                console.log("Maintainers = ", maintainers);
+                let maintainerList = selectedBoard.maintainers || [];
+                await Promise.all(maintainerList.map(async (maintainerPubkey) => {
+                try {
+                    const displayName = await getUserDisplayName(maintainerPubkey);
+                    maintainers.push({nPubKey:maintainerPubkey, nPubName: displayName}); 
+                } catch (error) {
+                    console.error("Error fetching maintainer display name:", error);
+                    maintainers.push({nPubKey:maintainerPubkey, nPubName: "Anonymous"}); 
+                }
+            }));
             } else {
                 errorLoadingMaintainers = "Board not found";
             }
@@ -264,10 +277,12 @@
     }
 
     function updateAssignees() {
+        isLoadingAssignee = true;
         let ownerNpub = card.pubkey;
         if (!assignees.includes(ownerNpub)) {
             assignees = [...assignees, ownerNpub];
-        }
+        } 
+        isLoadingAssignee = false; 
     }
 
 </script>
@@ -348,7 +363,7 @@
                         </div>
                     {/each}
                     {#if assignees.length === 0}
-                        <div>No assignees</div>
+                        <div>Loading...</div>
                     {/if}
                 </div>
                 {#if canEditCard}
@@ -358,25 +373,21 @@
                             bind:value={newAssignee} 
                             disabled={!canEditCard} 
                             on:change={() => validateAssignee(newAssignee)}
-                            class="assignee-select-box"
-                        >
+                            class="assignee-select-box">
                             <option  value="" disabled selected>Select Assignee</option>
-                            {#each maintainers as maintainer}
-                                <option value={maintainer}>{maintainer}</option>
-                            {/each}
+                            {#if loadingMaintainers}
+                                <option value="">Loading maintainers...</option>
+                            {:else}
+                                {#each maintainers as maintainer}
+                                    <option value={maintainer.nPubKey}>{maintainer.nPubName}</option>
+                                {/each}
+                            {/if}
                         </select>
-                        {#if isLoadingAssignee}
-                            <div class="validation-feedback">Loading...</div>
-                        {:else if currentAssigneeDisplay}
-                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
-                        {:else if assigneeError}
-                            <div class="validation-feedback error">{assigneeError}</div>
-                        {/if}
                     </div>
                     <button 
                         type="button" 
                         on:click={() => addAssignee()}
-                        disabled={!canEditCard || !currentAssigneeDisplay}
+                        disabled={!canEditCard}
                     >
                         Add
                     </button>
@@ -765,13 +776,6 @@
         gap: 0.5rem;
     }
 
-    .add-assignee input {
-        flex: 1;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-
     .add-assignee button {
         white-space: nowrap;
         padding: 0.5rem 1rem;
@@ -833,19 +837,6 @@
         border-radius: 4px; 
     }
 
-    .validation-feedback {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        font-size: 0.8rem;
-        margin-top: 4px;
-        white-space: nowrap;
-    }
-
-    .validation-feedback.valid {
-        color: #28a745;
-    }
-
     .add-assignee {
         display: flex;
         gap: 0.5rem;
@@ -867,10 +858,6 @@
     .add-assignee button:disabled {
         background: #ccc;
         cursor: not-allowed;
-    }
-
-    .validation-feedback.error {
-        color: #dc3545;
     }
 
     .board-selector {
