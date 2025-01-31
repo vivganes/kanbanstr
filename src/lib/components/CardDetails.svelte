@@ -3,6 +3,7 @@
     import { kanbanStore } from '../stores/kanban';
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
+    import type { NDKKind } from '@nostr-dev-kit/ndk';
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy } from 'svelte';
     import { ndkInstance } from '../ndk';
@@ -15,6 +16,11 @@
     export let onClose: () => void;
     export let isUnmapped: boolean = false;
     export let readOnly: boolean = false;
+
+    interface MaintainersListProps {
+        nPubKey: string;
+        nPubName: string;
+    }
 
 
     let title = card.title;
@@ -41,6 +47,10 @@
     let loadingBoards = true;
     let cloneSuccess = false;
     let isCloning = false;
+    let selectedBoard: KanbanBoard | null = null; 
+    let maintainers: MaintainersListProps[] = [];
+    let loadingMaintainers = false;
+    let errorLoadingMaintainers: string | null = null;
 
     onMount(async () => {
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
@@ -85,11 +95,17 @@
             }            
         });
 
+        if (boardId) { 
+            await loadBoardAndMaintainers(boardId);
+        }
+        updateAssignees();
+
         return () => {
                 unsubscribeNdk();
                 if(unsubKanban){
                     unsubKanban();
                 }
+                
         };
     });
 
@@ -126,7 +142,7 @@
     }
 
     async function validateAssignee(value: string) {
-        if (!value.trim()) {
+        if (!value) {
             currentAssigneeDisplay = null;
             isLoadingAssignee = false;
             assigneeError = null;
@@ -222,7 +238,53 @@
         if(editor){
             editor.setEditable(canEditCard);
         }
-    } 
+    }
+
+    async function loadBoardAndMaintainers(boardId: string) {
+        loadingMaintainers = true;
+        errorLoadingMaintainers = null;
+        try {
+            const filter = {
+                kinds: [30301 as NDKKind],
+                '#d': [boardId]
+            };
+            const events = await ndkInstance.ndk?.fetchEvents(filter);
+            if (!events || events.size === 0) {
+                throw new Error("Board not found");
+            }
+            const boardEvent = Array.from(events)[0];
+            selectedBoard = await kanbanStore.loadBoardByPubkeyAndId(boardEvent.pubkey, boardId);
+            if (selectedBoard) {
+                let maintainerList = selectedBoard.maintainers || [];
+                await Promise.all(maintainerList.map(async (maintainerPubkey) => {
+                try {
+                    const displayName = await getUserDisplayName(maintainerPubkey);
+                    maintainers.push({nPubKey:maintainerPubkey, nPubName: displayName}); 
+                } catch (error) {
+                    console.error("Error fetching maintainer display name:", error);
+                    maintainers.push({nPubKey:maintainerPubkey, nPubName: "Anonymous"}); 
+                }
+            }));
+            } else {
+                errorLoadingMaintainers = "Board not found";
+            }
+        } catch (error) {
+            errorLoadingMaintainers = error instanceof Error ? error.message : 'Error loading maintainers';
+            console.error(errorLoadingMaintainers);
+        } finally {
+            loadingMaintainers = false;
+        }
+    }
+
+    function updateAssignees() {
+        isLoadingAssignee = true;
+        let ownerNpub = card.pubkey;
+        if (!assignees.includes(ownerNpub)) {
+            assignees = [...assignees, ownerNpub];
+        } 
+        isLoadingAssignee = false; 
+    }
+
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -292,39 +354,42 @@
                             {:catch}
                                 <span>Anonymous</span>
                             {/await}
-                            <button type="button" class="remove-btn" on:click={() => removeAssignee(i)}>
-                                &times;
-                            </button>
+
+                            {#if assignee != card.pubkey}
+                                <button type="button" class="remove-btn" on:click={() => removeAssignee(i)}>
+                                    &times;
+                                </button>
+                            {/if}
                         </div>
                     {/each}
                     {#if assignees.length === 0}
-                        <div>No assignees</div>
+                        <div>Loading...</div>
                     {/if}
                 </div>
                 {#if canEditCard}
                 <div class="add-assignee">
-                    <div class="assignee-input-wrapper">
-                        <input
-                            bind:value={newAssignee}
-                            disabled = {!canEditCard}
-                            placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
-                            on:input={() => validateAssignee(newAssignee)}
-                            on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
-                        />
-                        {#if isLoadingAssignee}
-                            <div class="validation-feedback">Loading...</div>
-                        {:else if currentAssigneeDisplay}
-                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
-                        {:else if assigneeError}
-                            <div class="validation-feedback error">{assigneeError}</div>
-                        {/if}
+                    <div class="assignee-select-wrapper">
+                        <select 
+                            bind:value={newAssignee} 
+                            disabled={!canEditCard} 
+                            on:change={() => validateAssignee(newAssignee)}
+                            class="assignee-select-box">
+                            <option  value="" disabled selected>Select Assignee</option>
+                            {#if loadingMaintainers}
+                                <option value="">Loading maintainers...</option>
+                            {:else}
+                                {#each maintainers as maintainer}
+                                    <option value={maintainer.nPubKey}>{maintainer.nPubName}</option>
+                                {/each}
+                            {/if}
+                        </select>
                     </div>
                     <button 
                         type="button" 
                         on:click={() => addAssignee()}
-                        disabled={!canEditCard || !currentAssigneeDisplay}
+                        disabled={!canEditCard}
                     >
-                        Add Assignee
+                        Add
                     </button>
                 </div>
                 {/if}
@@ -711,13 +776,6 @@
         gap: 0.5rem;
     }
 
-    .add-assignee input {
-        flex: 1;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-
     .add-assignee button {
         white-space: nowrap;
         padding: 0.5rem 1rem;
@@ -765,23 +823,18 @@
         }        
     }
 
-    .assignee-input-wrapper {
+    .assignee-select-wrapper {
         position: relative;
         flex: 1;
         margin-bottom: 1rem;
     }
 
-    .validation-feedback {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        font-size: 0.8rem;
-        margin-top: 4px;
-        white-space: nowrap;
-    }
-
-    .validation-feedback.valid {
-        color: #28a745;
+    .assignee-select-box {
+        width: 100%; 
+        padding: 8px; 
+        font-size: 14px; 
+        border: 1px solid #ccc;
+        border-radius: 4px; 
     }
 
     .add-assignee {
@@ -805,19 +858,6 @@
     .add-assignee button:disabled {
         background: #ccc;
         cursor: not-allowed;
-    }
-
-    .assignee-input-wrapper input {
-        height: 36px;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        width: 100%;
-        box-sizing: border-box;
-    }
-
-    .validation-feedback.error {
-        color: #dc3545;
     }
 
     .board-selector {
