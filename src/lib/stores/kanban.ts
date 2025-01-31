@@ -47,6 +47,10 @@ export interface Card {
     content?: string;
 }
 
+export interface CardWithBoardTitle extends Card{
+    boardTitle: string;
+}
+
 export interface CardLink{
     boardPubKey: string;
     boardDTag: string;
@@ -443,7 +447,7 @@ function createKanbanStore() {
         }
     }
 
-    async function getSingleCard(boardPubKey:string, boardDTag:string, cardId:string): Promise<Card|void>{
+    async function getSingleCard(boardPubKey:string, boardDTag:string, cardId:string): Promise<CardWithBoardTitle|void>{
         // construct `a` tag from boardPubKey and boardDTag
         const aTag = `30301:${boardPubKey}:${boardDTag}`;
         // fetch card event
@@ -457,6 +461,18 @@ function createKanbanStore() {
             console.error('Card not found');
             return;
         }
+        const boardFilter = {
+            kinds: [30301 as NDKKind],
+            authors: [boardPubKey],
+            '#d': [boardDTag]
+        }
+        const boardEvent = await ndk.fetchEvent(boardFilter);
+        if (!boardEvent){
+            console.error('Board not found')
+            return;
+        }
+        const boardTitleTag = boardEvent.tags.find(t => t[0] === 'title');
+
         const latestCardEvent = Array.from(cardEvents).reduce((a, b) => a.created_at! > b.created_at! ? a : b);
         const titleTag = latestCardEvent.tags.find(t => t[0] === 'title');
         const statusTag = latestCardEvent.tags.find(t => t[0] === 's');
@@ -470,7 +486,8 @@ function createKanbanStore() {
             description: descriptionTag ? descriptionTag[1] : '',
             status: statusTag ? statusTag[1] : 'To Do',
             order: 0,
-            created_at: latestCardEvent.created_at!
+            created_at: latestCardEvent.created_at!,
+            boardTitle: boardTitleTag? boardTitleTag[1]: 'Unknown Board'
         }
     }
 
@@ -593,6 +610,8 @@ function createKanbanStore() {
                 const forwardLabel = incomingLinkTag ? incomingLinkTag[2] : '';
                 const backwardLabel = incomingLinkTag ? incomingLinkTag[3] : '';
                 const aTag = event.tags.find(t => t[0] === 'a');
+                const linkedCardDTags = event.tags.find(t => t[0] === 'd');
+                const linkedCardDTag = linkedCardDTags? linkedCardDTags[1]: '';
                 const linkedCardBoardDTag = aTag ? aTag[1].split(':')[2] : '';
                 const linkedCardBoardPubKey = aTag ? aTag[1].split(':')[1] : '';
                 const cardTitleTag = event.tags.find(t => t[0] === 'title');
@@ -614,7 +633,7 @@ function createKanbanStore() {
                 incomingLinkedCards.push({
                     boardPubKey: linkedCardBoardPubKey,
                     boardDTag: linkedCardBoardDTag,
-                    cardDTag,
+                    cardDTag: linkedCardDTag,
                     linkType: {
                         forwardLabel,
                         backwardLabel
