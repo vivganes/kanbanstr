@@ -24,7 +24,6 @@
         nPubName: string;
     }
 
-
     let title = card.title;
     let status = card.status;
     let description = card.description;
@@ -56,7 +55,7 @@
     let linkError: string | null = null;
     let loadingLinks: boolean = false;
     let selectedBoard: KanbanBoard | null = null; 
-    let maintainers: string[] = [];
+    let maintainers: MaintainersListProps[] = [];
     let loadingMaintainers = false;
     let errorLoadingMaintainers: string | null = null;
 
@@ -448,10 +447,18 @@
                 throw new Error("Board not found");
             }
             const boardEvent = Array.from(events)[0];
-            selectedBoard = await kanbanStore.loadBoardByPubkeyAndId(boardEvent.pubkey, boardId); // Load full board details
+            selectedBoard = await kanbanStore.loadBoardByPubkeyAndId(boardEvent.pubkey, boardId);
             if (selectedBoard) {
-                maintainers = selectedBoard.maintainers || [];
-                console.log("Maintainers = ", maintainers);
+                let maintainerList = selectedBoard.maintainers || [];
+                await Promise.all(maintainerList.map(async (maintainerPubkey) => {
+                try {
+                    const displayName = await getUserDisplayName(maintainerPubkey);
+                    maintainers.push({nPubKey:maintainerPubkey, nPubName: displayName}); 
+                } catch (error) {
+                    console.error("Error fetching maintainer display name:", error);
+                    maintainers.push({nPubKey:maintainerPubkey, nPubName: "Anonymous"}); 
+                }
+            }));
             } else {
                 errorLoadingMaintainers = "Board not found";
             }
@@ -464,10 +471,12 @@
     }
 
     function updateAssignees() {
+        isLoadingAssignee = true;
         let ownerNpub = card.pubkey;
         if (!assignees.includes(ownerNpub)) {
             assignees = [...assignees, ownerNpub];
-        }
+        } 
+        isLoadingAssignee = false; 
     }
 
 </script>
@@ -553,21 +562,21 @@
                 </div>
                 {#if canEditCard}
                 <div class="add-assignee">
-                    <div class="assignee-input-wrapper">
-                        <input
-                            bind:value={newAssignee}
-                            disabled = {!canEditCard}
-                            placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
-                            on:input={() => validateAssignee(newAssignee)}
-                            on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
-                        />
-                        {#if isLoadingAssignee}
-                            <div class="validation-feedback">Loading...</div>
-                        {:else if currentAssigneeDisplay}
-                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
-                        {:else if assigneeError}
-                            <div class="validation-feedback error">{assigneeError}</div>
-                        {/if}
+                    <div class="assignee-select-wrapper">
+                        <select 
+                            bind:value={newAssignee} 
+                            disabled={!canEditCard} 
+                            on:change={() => validateAssignee(newAssignee)}
+                            class="assignee-select-box">
+                            <option  value="" disabled selected>Select Assignee</option>
+                            {#if loadingMaintainers}
+                                <option value="">Loading maintainers...</option>
+                            {:else}
+                                {#each maintainers as maintainer}
+                                    <option value={maintainer.nPubKey}>{maintainer.nPubName}</option>
+                                {/each}
+                            {/if}
+                        </select>
                     </div>
                     <button 
                         type="button" 
@@ -1141,12 +1150,17 @@
         border-radius: 4px; 
     }
 
-    .assignee-select-box {
-        width: 100%; 
-        padding: 8px; 
-        font-size: 14px; 
-        border: 1px solid #ccc;
-        border-radius: 4px; 
+    .validation-feedback {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        font-size: 0.8rem;
+        margin-top: 4px;
+        white-space: nowrap;
+    }
+
+    .validation-feedback.valid {
+        color: #28a745;
     }
 
     .add-assignee {
@@ -1170,15 +1184,6 @@
     .add-assignee button:disabled {
         background: #ccc;
         cursor: not-allowed;
-    }
-
-    .assignee-input-wrapper input {
-        height: 36px;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        width: 100%;
-        box-sizing: border-box;
     }
 
     .validation-feedback.error {
