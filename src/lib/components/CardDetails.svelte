@@ -25,7 +25,8 @@
     let attachments = [...(card.attachments || [])];
     let newTag = '';
     let tTags = [...(card.tTags || [] )];
-    let linkedCardTags = [...(card.linkedCards || [])];
+    let outgoingLinks = [...(card.outgoingLinks || [])];
+    let incomingLinks = [...(card.incomingLinks || [])];
     let newAssignee = '';
     let assignees = [...new Set(card.assignees || [])];
     let editor: Editor;
@@ -194,7 +195,12 @@
         try {
             isSaving = true;
             error = null;
-            
+
+            // separate the deleted outgoing  links
+            const oldOutgoingLinks = card.outgoingLinks || [];
+            const currentOutgoingLinks = outgoingLinks;
+            const deletedOutgoingLinks = oldOutgoingLinks.filter(link => !currentOutgoingLinks.some(l => l.boardPubKey === link.boardPubKey && l.boardDTag === link.boardDTag && l.cardDTag === link.cardDTag));
+
             await kanbanStore.updateCard(boardId, {
                 ...card,
                 title: title.trim(),
@@ -203,8 +209,39 @@
                 attachments,
                 tTags,
                 assignees,
-                linkedCards: linkedCardTags
+                outgoingLinks: outgoingLinks
             });
+
+            //update newly linked card's incoming links in local state
+            for (let link of outgoingLinks) {
+                await kanbanStore.updateStateWithIncomingLinkToACard(link.boardPubKey, link.boardDTag, link.cardDTag, {
+                    boardPubKey: boardPubkey,
+                    boardDTag: boardId,
+                    cardDTag: card.dTag,
+                    linkType: {
+                        forwardLabel: link.linkType.forwardLabel,
+                        backwardLabel: link.linkType.backwardLabel
+                    },
+                    cardTitle: title,
+                    cardStatus: status
+                });
+            }
+
+            if(deletedOutgoingLinks){
+                console.log('deletedOutgoingLinks:', deletedOutgoingLinks);
+                //update the deleted outgoing links in local state
+                for (let link of deletedOutgoingLinks) {
+                    await kanbanStore.updateStateWithDeletedOutgoingLinkFromACard(link.boardPubKey, link.boardDTag, link.cardDTag, {
+                        boardPubKey: boardPubkey,
+                        boardDTag: boardId,
+                        cardDTag: card.dTag,
+                        linkType: {
+                            forwardLabel: link.linkType.forwardLabel,
+                            backwardLabel: link.linkType.backwardLabel
+                        }
+                    });
+                }
+            }
 
             onClose();
         } catch (err) {
@@ -250,37 +287,40 @@
     
 
     function validateLinkString(linkString: string): boolean {
-        // Format should be: pubkey:boardDTag:cardDTag
+        // Format should be: kanban:pubkey:boardDTag:cardDTag
         const parts = linkString.split(':');
-        console.log(parts);
-        return parts.length === 3 && parts.every(part => part.length > 0);
+        return parts.length === 4 && parts[0] === 'kanban' && parts.every(part => part.length > 0);
     }
     
 
-    function isSameLinkWithSameLinkTypeAlreadyPresent(linkString: string, linkType: string): boolean {
-        return linkedCardTags.some(link => {
-            return link.boardPubKey === linkString.split(':')[0] && 
-                link.boardDTag === linkString.split(':')[1] && 
-                link.cardDTag === linkString.split(':')[2] &&
-                link.linkType.forwardLabel === getForwardAndBackwardLinkLabels(linkType)[0];
-        });        
+    function isSameLinkAlreadyPresent(linkString: string, linkType: string): boolean {
+        return outgoingLinks.some(link => {
+            return link.boardPubKey === linkString.split(':')[1] && 
+                link.boardDTag === linkString.split(':')[2] && 
+                link.cardDTag === linkString.split(':')[3] 
+            });        
     }
     
 
     async function addLink() {
-        if (newLinkString.trim() && selectedLinkType &&  !isSameLinkWithSameLinkTypeAlreadyPresent(newLinkString, selectedLinkType)) {
+        const alreadyPresent = isSameLinkAlreadyPresent(newLinkString, selectedLinkType);
+        if(alreadyPresent){
+            linkError = 'Link to the same card already present. Delete existing link to add again.';
+            return;
+        }
+        if (newLinkString.trim() && selectedLinkType &&  !alreadyPresent) {
             if (validateLinkString(newLinkString)) {
 
                 const labels = getForwardAndBackwardLinkLabels(selectedLinkType);
-                const card = await kanbanStore.getSingleCard(newLinkString.split(':')[0],newLinkString.split(':')[1], newLinkString.split(':')[2])
+                const card = await kanbanStore.getSingleCard(newLinkString.split(':')[1],newLinkString.split(':')[2], newLinkString.split(':')[3])
                 if(!card){
                     linkError = 'Card not found';
                     return;
                 }
                 const newLinkedCard: CardLink = {
-                    boardPubKey: newLinkString.split(':')[0],
-                    boardDTag: newLinkString.split(':')[1],
-                    cardDTag: newLinkString.split(':')[2],
+                    boardPubKey: newLinkString.split(':')[1],
+                    boardDTag: newLinkString.split(':')[2],
+                    cardDTag: newLinkString.split(':')[3],
                     linkType: {
                         forwardLabel: labels[0],
                         backwardLabel: labels[1]
@@ -290,7 +330,7 @@
                     cardStatus: card.status
                     
                 }
-                linkedCardTags = [...linkedCardTags, newLinkedCard];
+                outgoingLinks = [...outgoingLinks, newLinkedCard];
                 newLinkString = '';
                 linkError = null;
             } else {
@@ -476,13 +516,11 @@
             <div class="section">
                 <label>Card Links</label>
                 <div class="card-links">
-                    <button class="copy-link-btn" on:click={copyLinkString}>
-                        Copy Link String
-                    </button>
 
-                    {#if (linkedCardTags && linkedCardTags.length > 0)}
+                    {#if (outgoingLinks && outgoingLinks.length > 0)}
+                    <h4>Outgoing links</h4>
                         <div class="links-list">
-                            {#each linkedCardTags as link, i}
+                            {#each outgoingLinks as link, i}
                                 <div class="link-item">
                                     <div class="link-target">
                                         {link.linkType.forwardLabel} 
@@ -492,9 +530,28 @@
                                             {link.cardTitle} - {link.cardStatus}
                                         </a>
                                     </div>
-                                    <button type="button" class="remove-btn" on:click={() => linkedCardTags = linkedCardTags.filter((_, j) => i !== j)}>
+                                    <button type="button" class="remove-btn" on:click={() => outgoingLinks = outgoingLinks.filter((_, j) => i !== j)}>
                                         &times;
                                     </button>
+                                </div>
+                            {/each}
+                                                   
+                        </div>
+                    {/if}
+
+                    {#if (incomingLinks && incomingLinks.length > 0)}
+                    <h4>Incoming links</h4>
+                        <div class="links-list">
+                            {#each incomingLinks as link, i}
+                                <div class="link-item">
+                                    <div class="link-target">
+                                        {link.linkType.backwardLabel} 
+                                        <a href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer">
+                                            {link.cardTitle} - {link.cardStatus}
+                                        </a>
+                                    </div>
                                 </div>
                             {/each}
                                                    
@@ -1033,7 +1090,6 @@
     }
 
     .link-target {
-        font-family: monospace;
         font-size: 0.9em;
         color: #666;
     }
@@ -1074,9 +1130,6 @@
             color: #fff;
         }
 
-        .link-item {
-            background: #2d2d2d;
-        }
 
         .link-target {
             color: #999;

@@ -121,7 +121,7 @@
         event.preventDefault();
         event.stopPropagation();
 
-        const linkString = `${boardPubkey}:${boardId}:${card.dTag}`;
+        const linkString = `kanban:${boardPubkey}:${boardId}:${card.dTag}`;
         navigator.clipboard.writeText(linkString);
         contextMenuComponent.setItemSuccess('copy-linking-string');
         toastStore.addToast('Linking string copied to clipboard');
