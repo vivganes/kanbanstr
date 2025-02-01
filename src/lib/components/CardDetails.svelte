@@ -47,9 +47,11 @@
     let newLinkString = '';
     let selectedLinkType: 'parent-child' | 'blocked-by' = 'parent-child';
     let linkError: string | null = null;
+    let loadingLinks: boolean = false;
 
     onMount(async () => {
         board = getContext('board');
+        fillLinksForCard();
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -358,6 +360,14 @@
             return groups;
         }, {} as Record<string, CardLink[]>);
     }
+
+
+    async function fillLinksForCard() {
+        loadingLinks = true;
+        outgoingLinks = card.outgoingLinks = await kanbanStore.getOutgoingLinkedCards(card.iTags);
+        incomingLinks = card.incomingLinks = await kanbanStore.getIncomingLinkedCards(boardPubkey, boardId, card.dTag);
+        loadingLinks = false;
+    }
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -492,7 +502,7 @@
                     <button type="button" 
                     disabled={!canEditCard || !newAttachment.trim()}
                     on:click={addAttachment}>
-                        Add Link
+                        Add Attachment
                     </button>
                 </div>
                 {/if}
@@ -535,17 +545,25 @@
 
             <div class="section">
                 <h3>Card Links</h3>
+                {#if loadingLinks}
+                    <div>Loading links...</div>
+                {:else}                    
                 <div class="card-links">
-                    <h4>Outgoing links</h4>
+                    <h4>Outgoing links <span class="material-icons link-symbol-title" title="Outgoing links are defined in this card">call_made</span></h4>
+                    <div class="links-subtitle">
+                        Outgoing links are defined in this card.
+                    </div>
                     {#if (outgoingLinks && outgoingLinks.length > 0)}                    
                     <div class="links-list">
                         {#each Object.entries(groupByLinkLabel(outgoingLinks, 'forwardLabel')) as [forwardLabel, links]}
                             <div class="link-group">
-                                <h5 class="link-group-label">This card {forwardLabel}</h5>
+                                <h5 class="link-group-label">This card {forwardLabel}:</h5>
                                 <div class="linked-cards">
                                     {#each links as link, i}
                                         <div class="linked-card">
                                             <div class="linked-card-content">
+                                                <!-- material icon for outgoing -->
+                                                <span class="material-icons link-symbol" title="Outgoing link">call_made</span>
                                                 <a 
                                                     href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
                                                     target="_blank" 
@@ -575,16 +593,21 @@
                     No outgoing links
                     {/if}
 
-                    <h4>Incoming links</h4>
+                    <h4>Incoming links <span class="material-icons link-symbol-title" title="Incoming link">call_received</span></h4>
+                    <div class="links-subtitle">
+                        Incoming links are defined in some other card.
+                    </div>
                     {#if (incomingLinks && incomingLinks.length > 0)}                    
                         <div class="links-list">
                             {#each Object.entries(groupByLinkLabel(incomingLinks, 'backwardLabel')) as [backwardLabel, links]}
                                 <div class="link-group">
-                                    <h5 class="link-group-label">This card {backwardLabel}</h5>
+                                    <h5 class="link-group-label">This card {backwardLabel}:</h5>
                                     <div class="linked-cards">
                                         {#each links as link}
                                         <div class="linked-card">
                                             <div class="linked-card-content">
+                                                <!-- material icon for incoming -->
+                                                <span class="material-icons link-symbol" title="Incoming link">call_received</span>
                                                 <a 
                                                     href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
                                                     target="_blank" 
@@ -608,6 +631,7 @@
                     {/if}
 
                     {#if canEditCard}
+                    <h4>Link another card</h4>
                         <div class="add-link">
                             <div class="link-type-select">
                                 <select bind:value={selectedLinkType}>
@@ -630,11 +654,12 @@
                                 disabled={!newLinkString.trim()}
                                 on:click={addLink}
                             >
-                                Add Link
+                                Link
                             </button>
                         </div>
                     {/if}
                 </div>
+                {/if}
             </div>
 
             <div class="section">
@@ -1209,8 +1234,8 @@
         border-radius: 4px;
         text-decoration: none;
         color: inherit;
-        border: 1px solid #242424;
         transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     .linked-card:hover {
@@ -1267,5 +1292,22 @@
         font-size: 1.2rem;
         transition: opacity 0.2s ease;
         line-height: 1;
+    }
+
+    .link-symbol-title {
+        font-size: 1rem;
+        color: #0052cc;
+    }
+
+    .link-symbol{
+        font-size: 1rem;
+        color: #0052cc;
+    }
+
+    .links-subtitle {
+        font-size: 0.9rem;
+        color: #666;
+        font-style: italic;
+        margin-top: -1rem;
     }
 </style> 

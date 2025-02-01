@@ -50,7 +50,6 @@
             const boardWithCurrentID = boardState.find(b => b.id === board.id);        
             if (boardWithCurrentID) {
                 board = boardWithCurrentID;
-                setContext('board', board);
                 if(board.needsMigration){
                     needsMigration = true;
                 }

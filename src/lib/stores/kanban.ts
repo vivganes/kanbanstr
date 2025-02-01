@@ -38,6 +38,7 @@ export interface Card {
     attachments?: string[];
     assignees?: string[]; // Array of nostr pubkeys (from p tags)
     tTags?: string[]; //Array of tags pointing to the particular card
+    iTags?: NDKTag[]; //Array of i tags pointing to the particular card
     outgoingLinks?: CardLink[]; //Array of links originating from the particular card
     incomingLinks?: CardLink[]; //Array of links pointing to the particular card
     created_at: number;
@@ -522,54 +523,9 @@ function createKanbanStore() {
             .filter(t => t[0] === 't')
             .map(t => t[1]);
 
-        const outgoingLinkedCards = [];
-        for (const t of eventToLoad.tags.filter(t => t[0] === 'i' && t[1].startsWith('kanban:'))) {
-            const [_, boardPubKey, boardDTag, cardDTag] = t[1].split(':');
-            const [forwardLabel, backwardLabel] = t.slice(2);
-            //get board title
-            const boardFilter: NDKFilter = {
-                kinds: [30301 as NDKKind],
-                '#d': [boardDTag]
-            };
-            const boardEvents = await ndk.fetchEvents(boardFilter);
-            if (!boardEvents) {
-                console.error('Board not found');
-                continue;
-            }
-            const boardEvent = Array.from(boardEvents)[0];
-            const titleTag = boardEvent.tags.find(t => t[0] === 'title');
-            const boardTitle = titleTag ? titleTag[1] : 'Untitled Board';
-            //get card title and status
-            const cardFilter: NDKFilter = {
-                kinds: [30302 as NDKKind],
-                '#d': [cardDTag]
-            };
-            const cardEvents = await ndk.fetchEvents(cardFilter);
-            if (!cardEvents) {
-                console.error('Card not found');
-                continue;
-            }
-            const latestCardEvent = Array.from(cardEvents).reduce((a, b) => a.created_at! > b.created_at! ? a : b);
-            const cardTitleTag = latestCardEvent.tags.find(t => t[0] === 'title');
-            const cardStatusTag = latestCardEvent.tags.find(t => t[0] === 's');
-            const cardTitle = cardTitleTag ? cardTitleTag[1] : 'Untitled Card';
-            const cardStatus = cardStatusTag ? cardStatusTag[1] : 'To Do';
-
-            outgoingLinkedCards.push({
-                boardPubKey,
-                boardDTag,
-                cardDTag,
-                linkType: {
-                    forwardLabel,
-                    backwardLabel
-                },
-                boardTitle,
-                cardTitle,
-                cardStatus
-            });
-        }
-
-        const inComingLinkedCards = await getIncomingLinkedCards(boardPubKey, boardId, originalEventDTag![1]!);
+        //Get all i tags
+        const iTags = eventToLoad.tags
+            .filter(t => t[0] === 'i');
 
         const newCard = {
             id: event.id,
@@ -587,10 +543,65 @@ function createKanbanStore() {
             tTags,
             trackingRef: trackingRef,
             trackingKind: trackingKind,
-            outgoingLinks: outgoingLinkedCards,
-            incomingLinks: inComingLinkedCards
+            iTags
         }
         boardCards.push(newCard);
+    }
+
+    async function getOutgoingLinkedCards(iTags: NDKTag[]): Promise<CardLink[]>{
+        const outgoingLinkedCards:CardLink[] = [];
+
+        if(iTags){
+            for (const t of iTags.filter(t => t[0] === 'i' && t[1].startsWith('kanban:'))) {
+                const [_, boardPubKey, boardDTag, cardDTag] = t[1].split(':');
+                const [forwardLabel, backwardLabel] = t.slice(2);
+                //get board title
+                const boardFilter: NDKFilter = {
+                    kinds: [30301 as NDKKind],
+                    '#d': [boardDTag]
+                };
+                const boardEvents = await ndk.fetchEvents(boardFilter);
+                if (!boardEvents) {
+                    console.error('Board not found');
+                    continue;
+                }
+                const boardEvent = Array.from(boardEvents)[0];
+                const titleTag = boardEvent.tags.find(t => t[0] === 'title');
+                const boardTitle = titleTag ? titleTag[1] : 'Untitled Board';
+                //get card title and status
+                const cardFilter: NDKFilter = {
+                    kinds: [30302 as NDKKind],
+                    '#d': [cardDTag]
+                };
+                const cardEvents = await ndk.fetchEvents(cardFilter);
+                if (!cardEvents) {
+                    console.error('Card not found');
+                    continue;
+                }
+                const latestCardEvent = Array.from(cardEvents).reduce((a, b) => a.created_at! > b.created_at! ? a : b);
+                const cardTitleTag = latestCardEvent.tags.find(t => t[0] === 'title');
+                const cardStatusTag = latestCardEvent.tags.find(t => t[0] === 's');
+                const cardTitle = cardTitleTag ? cardTitleTag[1] : 'Untitled Card';
+                const cardStatus = cardStatusTag ? cardStatusTag[1] : 'To Do';
+    
+                outgoingLinkedCards.push({
+                    boardPubKey,
+                    boardDTag,
+                    cardDTag,
+                    linkType: {
+                        forwardLabel,
+                        backwardLabel
+                    },
+                    boardTitle,
+                    cardTitle,
+                    cardStatus
+                });
+            }
+        }
+
+        
+        return outgoingLinkedCards;
+
     }
 
     async function getIncomingLinkedCards(boardPubKey:string, boardDTag:string, cardDTag:string){
@@ -725,6 +736,7 @@ function createKanbanStore() {
 
             await cardEvent.publish();
             const boardId = aTagPointingToBoard.split(':')[2];
+            const iTags = cardEvent.tags.filter(t => t[0] === 'i');
 
              // Update local store
              update(state => {
@@ -744,7 +756,8 @@ function createKanbanStore() {
                     assignees: card.assignees,
                     aTags: [aTagPointingToBoard],
                     tTags: [],
-                    outgoingLinks: card.outgoingLinks
+                    outgoingLinks: card.outgoingLinks,
+                    iTags
                 });
                 newCards.set(boardId, cards);
                 return {
@@ -848,6 +861,8 @@ function createKanbanStore() {
             }
 
             await newCardEvent.publishReplaceable();
+            // get iTags
+            const iTags = newCardEvent.tags.filter(t => t[0] === 'i');
 
             // Update local store
             update(state => {
@@ -861,7 +876,8 @@ function createKanbanStore() {
                         created_at: newCardEvent.created_at!,
                         id: newCardEvent.id,
                         pubkey: newCardEvent.pubkey,
-                        tTags: card.tTags                      
+                        tTags: card.tTags, 
+                        iTags                     
                     } : c
                 );
                 newCards.set(boardId, updatedCards);
@@ -1237,21 +1253,17 @@ function createKanbanStore() {
     }
 
     function updateStateWithDeletedOutgoingLinkFromACard(boardPubKey: string, boardDTag: string, cardDTag: string, cardLinkToBeDeleted: CardLink){
-        console.log("Deleting link", cardLinkToBeDeleted);
         update(state => {
             const newCards = new Map(state.cards);
             const cards = newCards.get(boardDTag) || [];
             const updatedCards = cards.map(c => {
                 if(c.dTag === cardDTag){
-                    console.log("Found card");
                     const updatedIncomingLinks = c.incomingLinks || [];
-                    console.log("Incoming links", updatedIncomingLinks);
                     const index = updatedIncomingLinks.findIndex(link => link.boardDTag === cardLinkToBeDeleted.boardDTag 
                         && link.cardDTag === cardLinkToBeDeleted.cardDTag
                         && link.linkType.forwardLabel === cardLinkToBeDeleted.linkType.forwardLabel 
                         && link.linkType.backwardLabel === cardLinkToBeDeleted.linkType.backwardLabel
                     );
-                    console.log("Index to delete", index);
                     if(index > -1){
                         updatedIncomingLinks.splice(index, 1);
                     }
@@ -1291,6 +1303,8 @@ function createKanbanStore() {
         cloneCardToBoard,
         trackCardInAnotherBoard,
         getSingleCard,
+        getOutgoingLinkedCards,
+        getIncomingLinkedCards,
         updateStateWithIncomingLinkToACard,
         updateStateWithDeletedOutgoingLinkFromACard
     };
