@@ -53,7 +53,10 @@
 </script>
 
 <div class="login-container">
-    <h1>Kanbanstr</h1>
+    <a href="/" class="logo-link">
+        <h1>Kanbanstr</h1>
+    </a>
+    
     {#if !loading}
     <h2>Login</h2>
     

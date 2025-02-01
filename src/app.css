@@ -93,3 +93,20 @@ button:focus-visible {
     background-color: #1a1a1a;
   }
 }
+
+.logo-link {
+    text-decoration: none;
+    color: inherit;
+    margin-right: 1rem;
+}
+
+.logo {
+    color: #e535ab;
+    margin: 0;
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.logo-link:hover {
+    opacity: 0.9;
+}

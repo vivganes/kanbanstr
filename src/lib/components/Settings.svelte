@@ -53,7 +53,9 @@
 
 <div class="settings-container">
     <header>
-        <h1>Kanbanstr</h1>        
+        <a href="/" class="logo-link">
+            <h1>Kanbanstr</h1>        
+        </a>
     </header>
     <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
 

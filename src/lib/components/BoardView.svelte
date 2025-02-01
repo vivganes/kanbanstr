@@ -64,7 +64,9 @@
 </script>
 
 <div class="board-view">
-    <h1>Kanbanstr</h1>
+    <a href="/" class="logo-link">
+        <h1>Kanbanstr</h1>
+    </a>
 
     {#if loading}
         <div class="loading">Loading board...</div>

@@ -11,6 +11,8 @@
     import KanbanMigrationUtil from '../utils/MigrationUtilV1';
     import MaintainersList from './MaintainersList.svelte';
     import UserAvatar from './UserAvatar.svelte';
+    import BoardSettings from './BoardSettings.svelte';
+    import BoardFilters from './BoardFilters.svelte';
 
     export let board: KanbanBoard;
     export let initialCardToOpen: { dTag: string } | undefined = undefined;
@@ -34,6 +36,16 @@
     let editedTitle = '';
     let editedDescription = '';
     let editedMaintainers: string[] = [];
+    let showFilters = false;
+    let filteredCards = cards;
+    let isFilterActive = false;
+    
+    let boardFilters = {
+        states: [],
+        assignees: [],
+        tags: [],
+        searchText: ''
+    };
 
     onMount(() => {
 
@@ -86,6 +98,48 @@
             boardSub();
         };
     });
+
+    $: {
+        filteredCards = cards;
+        
+        isFilterActive = !!(boardFilters.searchText || 
+            boardFilters.states.length > 0 || 
+            boardFilters.assignees.length > 0 || 
+            boardFilters.tags.length > 0);
+        
+        if (isFilterActive) {
+            filteredCards = cards.filter(card => {
+                if (boardFilters.states.length > 0 && !boardFilters.states.includes(card.status)) {
+                    return false;
+                }
+
+                if (boardFilters.assignees.length > 0) {
+                    const cardAssignees = card.assignees || [];
+                    if (!cardAssignees.some(assignee => boardFilters.assignees.includes(assignee))) {
+                        return false;
+                    }
+                }
+
+                if (boardFilters.searchText && 
+                    !card.title.toLowerCase().includes(boardFilters.searchText.toLowerCase())) {
+                    return false;
+                }
+
+                if (boardFilters.tags.length > 0) {
+                    const cardTags = card.tTags || [];
+                    if (!cardTags.some(tag => boardFilters.tags.includes(tag))) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+        }
+    }
+
+    function handleFilter(event) {
+        boardFilters = event.detail;  
+    }
 
     async function handleCardMove(cardId: string, targetStatus: string, targetIndex?: number) {
         const cardToUpdate = cards.find(c => c.id === cardId);
@@ -247,32 +301,60 @@
 
     $: columnCards = board.columns.map(col => ({
         ...col,
-        cards: cards.filter(card => card.status === col.name)
+        cards: filteredCards
+            .filter(card => card.status === col.name)
             .sort((a, b) => a.order - b.order)
     }));
+
+    function handleSettingsAction(event: CustomEvent) {
+        const action = event.detail;
+        if (action === 'reorderColumns') {
+            showReorderColumns = true;
+        } else if (action === 'addColumn') {
+            showAddColumn = true;
+        }
+    }
+
+    function toggleFilters() {
+        showFilters = !showFilters; 
+    }
 </script>
 
 <div class="board">
     <header class="board-header">
         <div class="header-actions">
-            <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
+            <div class="left-section">
+                <div class="title-section">
+                    <h2>{board.title}</h2>
+                    {#if canEdit}
+                    <button 
+                        class="icon-button"
+                        class:active={isEditingDetails} 
+                        on:click={startEditingDetails}
+                        title="Edit board details"
+                    >
+                        <span class="material-icons">edit</span>
+                    </button>                       
+                    {/if}
+                </div>
+                <button class="back-button" on:click={handleBack}>
+                    <span class="material-icons">keyboard_backspace</span>
+                    Back to Boards
+                </button>
+            </div>
             <div class="right-actions">
                 <button 
-                    class="board-btn" 
-                    on:click={() => showReorderColumns = true}
-                    disabled={!canEdit}
-                    title={!canEdit ? "Only the board owner can reorder columns" : ""}
+                    class="icon-button" 
+                    on:click={() => showFilters = !showFilters}
+                    title={showFilters ? "Hide Filters" : "Show Filters"}
+                    class:active={isFilterActive}
                 >
-                    ⋮⋮ Reorder Columns
+                    <span class="material-icons">filter_list</span>
                 </button>
-                <button 
-                    class="add-column-btn" 
-                    on:click={() => showAddColumn = true}
-                    disabled={!canEdit}
-                    title={!canEdit ? "Only the board owner can add columns" : ""}
-                >
-                    + Add Column
-                </button>
+                <BoardSettings 
+                    {canEdit}
+                    on:action={handleSettingsAction}
+                />
             </div>
         </div>
         <div class="header-content">
@@ -320,30 +402,23 @@
                     </div>
                 </div>
             {:else}
-                <div class="title-section">
-                    <h2>{board.title}</h2>
-                    {#if canEdit}
-                    <button 
-                        class="board-btn" 
-                        on:click={startEditingDetails}
-                        title="Edit board details"
-                    >
-                    ✎
-                    </button>                       
-                    {/if}
-                </div>
-                <p>{board.description}</p>                
+                <p class="board-description">{board.description}</p>                
             {/if}
         </div>
         {#if !isEditingDetails && board.maintainers?.length > 0}
-            <div class="maintainers-display">
-                <span class="label">Creator:</span>
-                <UserAvatar pubkey={board.pubkey} size={28} />
-                <span class="label">Maintainers:</span>
-                <div class="maintainers-avatars">
-                    {#each board.maintainers as maintainer}
-                        <UserAvatar pubkey={maintainer} size={28} />
-                    {/each}
+            <div class="board-meta">
+                <div class="meta-group">
+                    <span class="meta-label">Creator</span>
+                    <UserAvatar pubkey={board.pubkey} size={28} />
+                </div>
+                <div class="meta-divider"></div>
+                <div class="meta-group">
+                    <span class="meta-label">Maintainers</span>
+                    <div class="maintainers-avatars">
+                        {#each board.maintainers as maintainer}
+                            <UserAvatar pubkey={maintainer} size={28} />
+                        {/each}
+                    </div>
                 </div>
             </div>
         {/if}
@@ -356,59 +431,69 @@
             </div>
         {/if}
     {/if}
-    <div class="columns">
-        
-        {#if loading}
-            <div class="loading">Loading cards...</div>
-        {:else}
-       
-            {#if showAddColumn}
-                <div class="add-column-form">
-                    <input
-                        type="text"
-                        bind:value={newColumnName}
-                        placeholder="Enter column name"
-                        on:keydown={handleKeyDown}
-                        autofocus
-                    />
-                    <div class="add-column-actions">
-                        <button class="save" on:click={handleAddColumn}>Save</button>
-                        <button class="cancel" on:click={() => {
-                            showAddColumn = false;
-                            newColumnName = '';
-                        }}>Cancel</button>
-                    </div>
-                </div>
-            {/if}
-            
-            {#each columnCards as column (column.id)}
-                <Column
-                    {column}
-                    cards={column.cards}
-                    onCardDrop={handleCardMove}
-                    {board}
-                    isNoZapBoard={board.isNoZapBoard}
-                    readOnly={!canEdit}
-                    cardToOpen={cardToOpen}
-                    onDeleteColumn={() => handleDeleteColumn(column.name)}
-                />
-            {/each}
-            
-            {#if showUnmappedColumn}
-                <Column
-                    column={{ id: 'unmapped', name: 'Unmapped Cards', order: -1 }}
-                    cards={unmappedCards}
-                    onCardDrop={handleCardMove}
-                    isUnmapped={true}
-                    {board}
-                    isNoZapBoard={board.isNoZapBoard}
-                    readOnly={!canEdit}
-                    cardToOpen={cardToOpen}
-                />
-            {/if}
+
+    <div class="board-content">
+        {#if showFilters}
+            <BoardFilters 
+                {cards}
+                columns={board.columns}
+                filters={boardFilters}  
+                on:filter={handleFilter}
+                on:close={toggleFilters}
+            />
         {/if}
+
+        <div class="columns">
+            {#if loading}
+                <div class="loading">Loading cards...</div>
+            {:else}
+                {#if showAddColumn}
+                    <div class="add-column-form">
+                        <input
+                            type="text"
+                            bind:value={newColumnName}
+                            placeholder="Enter column name"
+                            on:keydown={handleKeyDown}
+                            autofocus
+                        />
+                        <div class="add-column-actions">
+                            <button class="save" on:click={handleAddColumn}>Save</button>
+                            <button class="cancel" on:click={() => {
+                                showAddColumn = false;
+                                newColumnName = '';
+                            }}>Cancel</button>
+                        </div>
+                    </div>
+                {/if}
+                
+                {#each columnCards as column (column.id)}
+                    <Column
+                        {column}
+                        cards={column.cards}
+                        onCardDrop={handleCardMove}
+                        {board}
+                        isNoZapBoard={board.isNoZapBoard}
+                        readOnly={!canEdit}
+                        cardToOpen={cardToOpen}
+                        onDeleteColumn={() => handleDeleteColumn(column.name)}
+                    />
+                {/each}
+                
+                {#if showUnmappedColumn}
+                    <Column
+                        column={{ id: 'unmapped', name: 'Unmapped Cards', order: -1 }}
+                        cards={unmappedCards}
+                        onCardDrop={handleCardMove}
+                        isUnmapped={true}
+                        {board}
+                        isNoZapBoard={board.isNoZapBoard}
+                        readOnly={!canEdit}
+                        cardToOpen={cardToOpen}
+                    />
+                {/if}
+            {/if}
+        </div>
     </div>
-    
 </div>
 
 {#if showAlert}
@@ -461,12 +546,18 @@
         text-align: left;
     }
 
+    .board-content {
+        display: flex;
+        flex-direction: column; 
+        height: calc(100% - 80px); 
+    }
+
     .columns {
         display: flex;
         gap: 1rem;
         overflow-x: auto;
-        height: calc(90% - 80px);
-        width: 100%;
+        height: 100%;
+        padding: 1rem;
     }
 
     .loading {
@@ -615,19 +706,25 @@
     }
 
     .back-button {
-        padding: 0.5rem 1rem;
-        background: #f4f5f7;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        color: #42526e;
+        gap: 4px;
+        background: transparent;
+        border: none;
+        color: #999;
+        padding: 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 14px;
     }
 
     .back-button:hover {
-        background: #e4e6e8;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .back-button .material-icons {
+        font-size: 18px;
     }
 
     .migration-warning {
@@ -820,6 +917,104 @@
     @media (prefers-color-scheme: dark) {
         .maintainers-display .label {
             color: #999;
+        }
+    }
+
+    .icon-button {
+        background: transparent;
+        border: none;
+        color: #999;
+        padding: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+    }
+
+    .icon-button:hover,
+    .icon-button.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .icon-button .material-icons {
+        font-size: 20px;
+    }
+
+    .left-section {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+    }
+
+    .title-section {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .title-section h2 {
+        margin: 0;
+    }
+
+    .board-description {
+        color: #ccc;
+        font-size: 14px;
+        line-height: 1.5;
+        margin: 8px 0;
+    }
+
+    .board-meta {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        margin-top: 16px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+    }
+
+    .meta-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .meta-label {
+        color: #999;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .meta-divider {
+        width: 1px;
+        height: 24px;
+        background: #444;
+    }
+
+    .maintainers-avatars {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    @media (prefers-color-scheme: light) {
+        .board-description {
+            color: #333;
+        }
+
+        .board-meta {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .meta-label {
+            color: #666;
+        }
+
+        .meta-divider {
+            background: #ddd;
         }
     }
 </style> 

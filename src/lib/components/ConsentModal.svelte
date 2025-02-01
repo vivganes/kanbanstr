@@ -30,7 +30,9 @@
 {#if showModal}
     <div class="modal-backdrop">
         <div class="modal">
-            <h1>Kanbanstr</h1>
+            <a href="/" class="logo-link">
+                <h1>Kanbanstr</h1>
+            </a>
             <h2>Important Notice</h2>
             <p>Please read and acknowledge the following before using Kanbanstr:</p>
             
