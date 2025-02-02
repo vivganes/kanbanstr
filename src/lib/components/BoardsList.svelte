@@ -220,7 +220,7 @@
                     on:click|stopPropagation={toggleSettingsMenu}
                     title="Settings"
                 >
-                    <span class="material-icons">settings</span>
+                    <span class="material-icons">more_horiz</span>
                 </button>
                 
                 {#if showSettingsMenu}
@@ -234,7 +234,7 @@
                                 }}
                             >
                                 <span class="material-icons">add_box</span>
-                                Add Board
+                                Create board
                             </button>
                         {/if}
                         <button 
@@ -245,7 +245,7 @@
                             }}
                         >
                             <span class="material-icons">tune</span>
-                            Settings
+                            Preferences
                         </button>
                     </div>
                 {/if}

@@ -17,6 +17,7 @@
         class="icon-button" 
         on:click|stopPropagation={() => showDropdown = !showDropdown}
         title="Board Settings"
+        class:active={showDropdown}
     >
         <span class="material-icons">settings</span>
     </button>

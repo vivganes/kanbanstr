@@ -325,6 +325,9 @@
         <div class="header-actions">
             <div class="left-section">
                 <div class="title-section">
+                    <button class="back-button" on:click={handleBack} title="Back to boards">
+                        <span class="material-icons">keyboard_backspace</span>
+                    </button>
                     <h2>{board.title}</h2>
                     {#if canEdit}
                     <button 
@@ -337,19 +340,16 @@
                     </button>                       
                     {/if}
                 </div>
-                <button class="back-button" on:click={handleBack}>
-                    <span class="material-icons">keyboard_backspace</span>
-                    Back to Boards
-                </button>
+                
             </div>
             <div class="right-actions">
                 <button 
                     class="icon-button" 
                     on:click={() => showFilters = !showFilters}
                     title={showFilters ? "Hide Filters" : "Show Filters"}
-                    class:active={isFilterActive}
+                    class:active={showFilters}
                 >
-                    <span class="material-icons">filter_list</span>
+                    <span class="material-icons">filter_alt</span>
                 </button>
                 <BoardSettings 
                     {canEdit}
@@ -895,6 +895,10 @@
     .no-maintainer-label {
         color: #999;
         font-size: 0.9rem;
+    }
+
+    .back-button{
+        padding:0.25rem;
     }
 
     @media (prefers-color-scheme: light) {

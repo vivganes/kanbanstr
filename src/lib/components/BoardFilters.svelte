@@ -97,7 +97,7 @@
 
 <div class="filter-bar">
     <div class="filter-left">
-        <span class="material-icons filter-icon">filter_list</span>
+        <span class="material-icons filter-icon">filter_alt</span>
         <input 
             type="text" 
             bind:value={searchText} 
@@ -114,7 +114,7 @@
                     on:click={() => toggleDropdown('states')}
                     class:active={activeDropdown === 'states'}
                 >
-                    Status {selectedStates.length ? `(${selectedStates.length})` : ''} ▼
+                    Status {selectedStates.length ? `(${selectedStates.length})` : ''} <span class="dropdown-icon">▼</span>
                 </button>
                 {#if activeDropdown === 'states'}
                     <div class="dropdown-menu" on:click|stopPropagation>
@@ -155,7 +155,7 @@
                     on:click={() => toggleDropdown('assignees')}
                     class:active={activeDropdown === 'assignees'}
                 >
-                    Assigned to {selectedAssignees.length ? `(${selectedAssignees.length})` : ''} ▼
+                    Assigned to {selectedAssignees.length ? `(${selectedAssignees.length})` : ''} <span class="dropdown-icon">▼</span>
                 </button>
                 {#if activeDropdown === 'assignees'}
                     <div class="dropdown-menu" on:click|stopPropagation>
@@ -199,7 +199,7 @@
                     on:click={() => toggleDropdown('tags')}
                     class:active={activeDropdown === 'tags'}
                 >
-                    Tags {selectedTags.length ? `(${selectedTags.length})` : ''} ▼
+                    Tags {selectedTags.length ? `(${selectedTags.length})` : ''} <span class="dropdown-icon">▼</span>
                 </button>
                 {#if activeDropdown === 'tags'}
                     <div class="dropdown-menu" on:click|stopPropagation>
@@ -235,7 +235,7 @@
             </div>
         </div>
 
-        <button class="close-button" on:click={clearAllFilters}>×</button>
+        <button class="close-button" on:click={clearAllFilters} title="Clear all filters"><span class="material-icons">fbackspace</span></button>
     </div>
 </div>
 
@@ -262,6 +262,7 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        padding-left: 0.5rem;
     }
 
     .filter-buttons {
@@ -272,6 +273,10 @@
 
     .filter-dropdown {
         position: relative;
+    }
+
+    .dropdown-icon{
+        font-size: smaller;
     }
 
     .filter-button {
