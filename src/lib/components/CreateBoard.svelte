@@ -243,14 +243,5 @@
         .modal-backdrop {
             color: #333;
         }
-
-        .back-button {
-            background: #1e1855;           
-        }
-
-        .back-button:hover {
-            background: #2e2955;
-        }
-
     }
 </style> 

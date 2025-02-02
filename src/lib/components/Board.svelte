@@ -675,28 +675,6 @@
         width: 100%;
     }
 
-    .back-button {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        background: transparent;
-        border: none;
-        color: #999;
-        padding: 8px;
-        cursor: pointer;
-        border-radius: 4px;
-        font-size: 14px;
-    }
-
-    .back-button:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-    }
-
-    .back-button .material-icons {
-        font-size: 18px;
-    }
-
     .migration-warning {
         background-color: #fff3cd;
         border: 1px solid #ffeeba;
@@ -740,17 +718,6 @@
 
         .migration-warning button:hover {
             background-color: #997d00;
-        }
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .back-button {
-            background: #1e1855;
-            color: #fff;
-        }
-
-        .back-button:hover {
-            background: #2e2955;
         }
     }
 

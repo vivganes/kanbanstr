@@ -247,8 +247,8 @@
         justify-content: space-between;
         align-items: center;
         padding: 8px 16px;
-        background: #333;
-        border-bottom: 1px solid #444;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
     }
 
     .filter-left {
@@ -275,30 +275,30 @@
     }
 
     .filter-button {
-        background: #333;
-        border: 1px solid #444;
-        color: #fff;
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        color: #333333;
         padding: 6px 12px;
         border-radius: 4px;
         cursor: pointer;
     }
 
     .filter-button.active {
-        background: #444;
+        background: #e9ecef;
     }
 
     .dropdown-menu {
         position: absolute;
         top: 100%;
         left: 0;
-        background: #252526;
-        border: 1px solid #454545;
+        background: #ffffff;
+        border: 1px solid #dee2e6;
         border-radius: 4px;
         margin-top: 4px;
         min-width: 200px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         z-index: 1000;
-        color: #cccccc;
+        color: #333333;
     }
 
     .clear-filter {
@@ -307,7 +307,7 @@
         padding: 8px;
         border: none;
         background: none;
-        color: #cccccc;
+        color: #666666;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -315,12 +315,12 @@
     }
 
     .clear-filter:hover {
-        background: #2a2d2e;
+        background: #f8f9fa;
     }
 
     .dropdown-divider {
         height: 1px;
-        background: #454545;
+        background: #dee2e6;
     }
 
     .checkbox-label {
@@ -328,42 +328,48 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .checkbox-label:hover {
+        background-color: #f0f0f0;  
     }
 
     .filter-icon {
-        color: #999;
+        color: #666666;
         font-size: 20px;
     }
 
     .search-input {
         background: transparent;
         border: none;
-        color: #fff;
+        color: #333333;
         padding: 4px;
         flex: 1;
         min-width: 200px;
     }
 
     .search-input::placeholder {
-        color: #999;
+        color: #6c757d;
     }
 
     .close-button {
         background: transparent;
         border: none;
-        color: #999;
+        color: #666666;
         padding: 4px 8px;
         cursor: pointer;
         font-size: 18px;
     }
 
     .close-button:hover {
-        color: #fff;
+        color: #333333;
     }
 
     .empty-state {
         padding: 8px 12px;
-        color: #cccccc;
+        color: #666666;
         font-size: 14px;
     }
 
@@ -396,7 +402,7 @@
         gap: 4px;
         background: transparent;
         border: none;
-        color: #666;
+        color: #666666;
         font-size: 12px;
         cursor: pointer;
         padding: 2px 4px;
@@ -404,8 +410,8 @@
     }
 
     .clear-button:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
+        background: rgba(0, 0, 0, 0.05);
+        color: #333333;
     }
 
     .clear-button .material-icons {
@@ -413,13 +419,94 @@
     }
 
     .checkbox-text {
-        color: #fff;
+        color: #333333;
     }
 
     .empty-message {
         padding: 8px;
-        color: #cccccc;
+        color: #666666;
         text-align: center;
         font-style: italic;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .filter-bar {
+            background: #333;
+            border-bottom: 1px solid #444;
+        }
+
+        .filter-button {
+            background: #333;
+            border: 1px solid #444;
+            color: #fff;
+        }
+
+        .filter-button.active {
+            background: #444;
+        }
+
+        .dropdown-menu {
+            background: #252526;
+            border: 1px solid #454545;
+            color: #cccccc;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .clear-filter {
+            color: #cccccc;
+        }
+
+        .clear-filter:hover {
+            background: #2a2d2e;
+        }
+
+        .dropdown-divider {
+            background: #454545;
+        }
+
+        .filter-icon {
+            color: #999;
+        }
+
+        .search-input {
+            color: #fff;
+        }
+
+        .search-input::placeholder {
+            color: #999;
+        }
+
+        .close-button {
+            color: #999;
+        }
+
+        .close-button:hover {
+            color: #fff;
+        }
+
+        .empty-state {
+            color: #cccccc;
+        }
+
+        .clear-button {
+            color: #666;
+        }
+
+        .clear-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .checkbox-text {
+            color: #fff;
+        }
+
+        .empty-message {
+            color: #cccccc;
+        }
+
+        .checkbox-label:hover {
+            background-color: #2a2d2e; 
+        }
     }
 </style> 

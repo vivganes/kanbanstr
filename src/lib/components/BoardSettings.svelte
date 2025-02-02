@@ -67,41 +67,6 @@
         color: #fff;
     }
 
-    .settings-dropdown {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        background: #2d2d2d;
-        border: 1px solid #444;
-        border-radius: 4px;
-        padding: 0.5rem;
-        z-index: 1000;
-        min-width: 200px;
-    }
-
-    .dropdown-item {
-        width: 100%;
-        text-align: left;
-        padding: 0.5rem;
-        background: transparent;
-        border: none;
-        color: #fff;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        border-radius: 4px;
-    }
-
-    .dropdown-item:hover:not(:disabled) {
-        background: #3d3d3d;
-    }
-
-    .dropdown-item:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
     :global(.material-icons) {
         font-size: 20px;
     }

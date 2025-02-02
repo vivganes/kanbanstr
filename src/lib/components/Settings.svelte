@@ -57,7 +57,10 @@
             <h1>Kanbanstr</h1>        
         </a>
     </header>
-    <button class="back-button" on:click={handleBack}>&larr; Back to Boards</button>
+    <button class="back-button" on:click={handleBack}>
+        <span class="material-icons">keyboard_backspace</span>
+        Back to Boards
+    </button>
 
     <div class="section">
         <h2>Profile Information</h2>
@@ -329,22 +332,6 @@
         margin-bottom: 2rem;
     }
 
-    .back-button {
-        padding: 0.5rem 1rem;
-        background: #f4f5f7;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: #42526e;
-    }
-
-    .back-button:hover {
-        background: #e4e6e8;
-    }
-
     @media (prefers-color-scheme: dark) {
         .section {
             color: #333;
@@ -364,15 +351,6 @@
 
         .nwc-section {
             border-top-color: #444;
-        }
-
-        .back-button {
-            background: #1e1855;
-            color: #fff;
-        }
-
-        .back-button:hover {
-            background: #2e2955;
         }
     }
 </style> 

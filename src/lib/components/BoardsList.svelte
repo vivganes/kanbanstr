@@ -745,37 +745,4 @@
         color: #fff;
     }
 
-    .settings-menu, .user-menu {
-        position: absolute;
-        right: 0;
-        top: 100%;
-        background: #2d2d2d;
-        border: 1px solid #444;
-        border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        min-width: 180px;
-        z-index: 1000;
-        margin-top: 4px;
-    }
-
-    .menu-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        width: 100%;
-        padding: 8px 16px;
-        border: none;
-        background: none;
-        color: #fff;
-        cursor: pointer;
-        text-align: left;
-    }
-
-    .menu-item:hover {
-        background: rgba(255, 255, 255, 0.1);
-    }
-
-    .menu-item .material-icons {
-        font-size: 20px;
-    }
 </style> 
