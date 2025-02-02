@@ -64,7 +64,9 @@
 </script>
 
 <div class="board-view">
-    <h1>Kanbanstr</h1>
+    <a href="/" class="logo-link">
+        <h1>Kanbanstr</h1>
+    </a>
 
     {#if loading}
         <div class="loading">Loading board...</div>
@@ -111,14 +113,5 @@
         .board-view {
             color: #333;
         }
-
-        .back-button {
-            background: #1e1855;           
-        }
-
-        .back-button:hover {
-            background: #2e2955;
-        }
-
     }
 </style> 

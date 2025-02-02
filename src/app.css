@@ -11,6 +11,34 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --icon-color: #666;
+  --icon-hover-color: #333;
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --active-bg: #e6e6e6;
+  --active-color: #000;
+  --active-border: #ccc;
+  --back-btn-color: #333;
+  --back-btn-bg: #ffffff;
+  --back-btn-border: #e0e0e0;
+  --back-btn-hover-color: #000;
+  --back-btn-hover-bg: #f5f5f5;
+  --back-btn-hover-border: #d0d0d0;
+  --dropdown-menu-bg: #ffffff;
+  --dropdown-menu-border: #e0e0e0;
+  --dropdown-menu-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --dropdown-item-color: #333333;
+  --dropdown-item-hover-bg: #f5f5f5;
+
+  --menu-button-color: #666;
+  --menu-button-hover-bg: rgba(0, 0, 0, 0.05);
+  --menu-button-hover-color: #333;
+  --menu-bg: #ffffff;
+  --menu-border: #e0e0e0;
+  --menu-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --menu-item-color: #333;
+  --menu-item-hover-bg: rgba(0, 0, 0, 0.05);
+  --menu-item-disabled-color: #999;
 }
 
 a {
@@ -78,13 +106,37 @@ button:focus-visible {
   }
 }
 
-
-
-
 @media (prefers-color-scheme: dark) {
   :root {
     color: #d9d9d9;
     background-color: #121212;
+    --icon-color: #999;
+    --icon-hover-color: #fff;
+    --hover-bg: rgba(255, 255, 255, 0.1);
+    --active-bg: rgba(255, 255, 255, 0.2);
+    --active-color: #fff;
+    --active-border: rgba(255, 255, 255, 0.3);
+    --back-btn-color: #fff;
+    --back-btn-bg: #0052cc;  
+    --back-btn-border: #0047b3; 
+    --back-btn-hover-color: #fff;
+    --back-btn-hover-bg: #0065ff; 
+    --back-btn-hover-border: #0052cc;
+    --dropdown-menu-bg: #2b2d42;
+    --dropdown-menu-border: #3f425a;
+    --dropdown-menu-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --dropdown-item-color: #ffffff;
+    --dropdown-item-hover-bg: #3f425a;
+
+    --menu-button-color: #999;
+    --menu-button-hover-bg: rgba(255, 255, 255, 0.1);
+    --menu-button-hover-color: #fff;
+    --menu-bg: #2d2d2d;
+    --menu-border: #444;
+    --menu-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    --menu-item-color: #fff;
+    --menu-item-hover-bg: rgba(255, 255, 255, 0.1);
+    --menu-item-disabled-color: #666;
   }
   a:hover {
     color: #535bf2;
@@ -92,4 +144,201 @@ button:focus-visible {
   button {
     background-color: #1a1a1a;
   }
+
+  .back-button {
+    background: #1e1855;
+    color: #fff;
+  } 
+
+  .back-button:hover {
+      background: #2e2955;
+  }
+}
+
+.logo-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.logo {
+    color: #e535ab;
+    margin: 0;
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.logo-link:hover {
+    opacity: 0.9;
+}
+
+.icon-button {
+    background: transparent;
+    border: none;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--icon-color);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.icon-button:hover {
+    background: var(--hover-bg);
+    color: var(--icon-hover-color) !important;
+}
+
+.icon-button .material-icons {
+    font-size: 20px;
+    color: inherit;
+}
+
+.icon-button.active {
+    background: var(--active-bg) !important;
+    color: var(--active-color) !important;
+    border: 1px solid var(--active-border);
+}
+
+.back-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    color: var(--back-btn-color);
+    background: var(--back-btn-bg);
+    transition: all 0.2s;
+    border: 1px solid var(--back-btn-border);
+}
+
+.back-button:hover {
+    background: var(--back-btn-hover-bg);
+    color: var(--back-btn-hover-color) !important;
+    border-color: var(--back-btn-hover-border);
+}
+
+.settings-container .settings-menu,
+.user-container .user-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: var(--dropdown-menu-bg);
+    border: 1px solid var(--dropdown-menu-border);
+    border-radius: 4px;
+    box-shadow: var(--dropdown-menu-shadow);
+    z-index: 1000;
+    min-width: 160px;
+    padding: 4px 0;
+}
+
+.settings-menu .menu-item,
+.user-menu .menu-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    color: var(--dropdown-item-color);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    text-align: left;
+}
+
+.settings-menu .menu-item:hover,
+.user-menu .menu-item:hover {
+    background-color: var(--dropdown-item-hover-bg);
+}
+
+.settings-container, .user-container {
+    position: relative;
+}
+
+.icon-button, .user-button {
+    background: transparent;
+    border: none;
+    color: var(--menu-button-color);
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.icon-button:hover, .user-button:hover {
+    background: var(--menu-button-hover-bg);
+    color: var(--menu-button-hover-color);
+}
+
+.settings-menu, .user-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: var(--menu-bg);
+    border: 1px solid var(--menu-border);
+    border-radius: 4px;
+    box-shadow: var(--menu-shadow);
+    min-width: 180px;
+    z-index: 1000;
+    margin-top: 4px;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: var(--menu-item-color);
+    cursor: pointer;
+    text-align: left;
+}
+
+.menu-item:hover {
+    background: var(--menu-item-hover-bg);
+}
+
+.menu-item .material-icons {
+    font-size: 20px;
+}
+
+.settings-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: var(--menu-bg);
+    border: 1px solid var(--menu-border);
+    border-radius: 4px;
+    box-shadow: var(--menu-shadow);
+    min-width: 180px;
+    z-index: 1000;
+    margin-top: 4px;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: var(--menu-item-color);
+    cursor: pointer;
+    text-align: left;
+}
+
+.dropdown-item:hover:not(:disabled) {
+    background: var(--menu-item-hover-bg);
+}
+
+.dropdown-item:disabled {
+    color: var(--menu-item-disabled-color);
+    cursor: not-allowed;
+    opacity: 0.6;
 }

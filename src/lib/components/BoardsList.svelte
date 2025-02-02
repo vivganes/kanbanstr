@@ -9,6 +9,7 @@
     import AlertModal from './AlertModal.svelte';
     import { getUserWithProfileFromPubKey } from '../utils/user';
     import UserAvatar from './UserAvatar.svelte';
+    import { toastStore } from '../stores/toast';
 
     let showCreateBoard = false;
     let boards: KanbanBoard[] = [];
@@ -17,8 +18,6 @@
     let loading = false;
     let currentUser: NDKUser | null = null;
     let currentLoginMethod: LoginMethod | null = null;
-    let copySuccess: { [key: string]: boolean } = {};
-    let copyTimeouts: { [key: string]: NodeJS.Timeout } = {};
     let errorMessage: string | null = null;
 
     interface EditState {
@@ -40,6 +39,9 @@
 
     // Add this to track Map updates
     let creatorNamesVersion = 0;
+
+    let showUserMenu = false;
+    let showSettingsMenu = false;
 
     async function switchTab(tab: 'my-boards' | 'maintaining-boards' |'all-boards') {
         try {
@@ -106,19 +108,15 @@
     function copyBoardPermalink(board: KanbanBoard, event: MouseEvent) {
         event.stopPropagation();
         
-        // Clear any existing timeout for this board
-        if (copyTimeouts[board.id]) {
-            clearTimeout(copyTimeouts[board.id]);
-        }
-
         const permalink = `${window.location.origin}/#/board/${board.pubkey}/${board.id}`;
         
-        navigator.clipboard.writeText(permalink).then(() => {
-            copySuccess[board.id] = true;
-            copyTimeouts[board.id] = setTimeout(() => {
-                copySuccess[board.id] = false;
-            }, 2000);
-        });
+        navigator.clipboard.writeText(permalink)
+            .then(() => {
+                toastStore.addToast('Permalink copied to clipboard', 'success');
+            })
+            .catch(() => {
+                toastStore.addToast('Failed to copy permalink', 'error');
+            });
     }
 
     function startEdit(board: KanbanBoard, field: 'title' | 'description', event: MouseEvent) {
@@ -181,22 +179,113 @@
         }
     }
 
+    function handleClickOutside(event: MouseEvent) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.user-menu') && !target.closest('.user-button')) {
+            showUserMenu = false;
+        }
+        if (!target.closest('.settings-menu') && !target.closest('.settings-button')) {
+            showSettingsMenu = false;
+        }
+    }
+
+    function toggleSettingsMenu() {
+        showSettingsMenu = !showSettingsMenu;
+        showUserMenu = false;  
+    }
+
+    function toggleUserMenu() {
+        showUserMenu = !showUserMenu;
+        showSettingsMenu = false;  
+    }
+
 </script>
+
+<svelte:window on:click={handleClickOutside} />
 
 <div class="boards-list">
     <header>
         <div class="header-left">
+        <a href="/" class="logo-link">
             <h1>Kanbanstr</h1>
+        </a>
             {#if currentLoginMethod === 'npub' || currentLoginMethod === 'readonly'}
                 <span class="read-only-badge">Read Only</span>
             {/if}
         </div>
         <div class="header-right">            
-            <a href="#/settings" class="settings-link">Settings</a>
-            {#if currentLoginMethod !== 'npub' && currentLoginMethod !== 'readonly'}
-                <button on:click={() => showCreateBoard = true}>Create Board</button>
-            {/if}
-            <button class="logout" on:click={handleLogout}>Logout</button>
+            <div class="settings-container">
+                <button 
+                    class="icon-button settings-button" 
+                    on:click|stopPropagation={toggleSettingsMenu}
+                    title="Settings"
+                >
+                    <span class="material-icons">more_horiz</span>
+                </button>
+                
+                {#if showSettingsMenu}
+                    <div class="settings-menu" on:click|stopPropagation>
+                        {#if currentLoginMethod !== 'npub' && currentLoginMethod !== 'readonly'}
+                            <button 
+                                class="menu-item"
+                                on:click={() => {
+                                    showCreateBoard = true;
+                                    showSettingsMenu = false;
+                                }}
+                            >
+                                <span class="material-icons">add_box</span>
+                                Create board
+                            </button>
+                        {/if}
+                        <button 
+                            class="menu-item"
+                            on:click={() => {
+                                window.location.hash = '/settings';
+                                showSettingsMenu = false;
+                            }}
+                        >
+                            <span class="material-icons">tune</span>
+                            Preferences
+                        </button>
+                    </div>
+                {/if}
+            </div>
+
+            <div class="user-container">
+                <button 
+                    class="user-button" 
+                    on:click|stopPropagation|preventDefault={toggleUserMenu}
+                    title="User menu"
+                >
+                    {#if currentUser?.pubkey}
+                        <UserAvatar pubkey={currentUser.pubkey} size={32} noLink={true} />
+                    {:else}
+                        <span class="material-icons" style="font-size: 32px;">account_circle</span>
+                    {/if}
+                </button>
+                
+                {#if showUserMenu}
+                    <div class="user-menu" on:click|stopPropagation>
+                        <button 
+                            class="menu-item"
+                            on:click={() => {
+                                window.open(`https://primal.net/p/${currentUser.npub}`, '_blank');
+                                showUserMenu = false;
+                            }}
+                        >
+                            <span class="material-icons">account_circle</span>
+                            View Profile
+                        </button>
+                        <button 
+                            class="menu-item"
+                            on:click={handleLogout}
+                        >
+                            <span class="material-icons">logout</span>
+                            Logout
+                        </button>
+                    </div>
+                {/if}
+            </div>
         </div>
     </header>
     <div class="user-npub">Welcome {currentUser?.profile?.displayName || 'anonymous' }!!!</div>
@@ -250,30 +339,33 @@
                                 <h3>{board.title}</h3>
                         </div>
                         <button 
-                            class="permalink-button" 
+                            class="icon-button" 
                             on:click={(e) => copyBoardPermalink(board, e)}
                             title="Copy permalink"
                         >
-                            {#if copySuccess[board.id]}
-                                ✓
-                            {:else}
-                                🔗
-                            {/if}
+                            <span class="material-icons">link</span>
                         </button>
                     </div>
                     
                     <div class="description-section">                        
-                            <p>{' ' + (board.description || 'No description')}</p>
+                        <p class="description">{board.description || 'No description'}</p>
                     </div>
                     <div class="creator-info">
-                        Creator: <UserAvatar pubkey={board.pubkey} size={24} prefix="Creator: "/>
-                        ♦ Maintainers:
-                         {#each board.maintainers as maintainer}
-                        <UserAvatar pubkey={maintainer} size={24} prefix="Maintainer: "/>
-                        {/each}
-                        {#if board.maintainers.length === 0}
-                            <span>None</span>
-                        {/if}
+                        <div class="info-group">
+                            <span class="label">Creator:</span>
+                            <UserAvatar pubkey={board.pubkey} size={24} prefix="Creator: "/>
+                        </div>
+                        <div class="info-group">
+                            <span class="label">Maintainers:</span>
+                            <div class="maintainers-list">
+                                {#each board.maintainers as maintainer}
+                                    <UserAvatar pubkey={maintainer} size={24} prefix="Maintainer: "/>
+                                {/each}
+                                {#if board.maintainers.length === 0}
+                                    <span class="no-maintainers">None</span>
+                                {/if}
+                            </div>
+                        </div>
                     </div>
                 </div>
             {/each}
@@ -355,22 +447,6 @@
 
     .board-header h3 {
         margin: 0;
-    }
-
-    .permalink-button {
-        background: none;
-        border: none;
-        padding: 0.2rem;
-        cursor: pointer;
-        font-size: 1rem;
-        opacity: 0.6;
-        border-radius: 4px;
-        transition: opacity 0.2s, background-color 0.2s;
-    }
-
-    .permalink-button:hover {
-        opacity: 1;
-        background: rgba(0, 0, 0, 0.05);
     }
 
     .title-section, .description-section {
@@ -506,19 +582,58 @@
         }
     }
 
+    .description-section {
+        margin-bottom: 16px;
+    }
+
+    .description {
+        color: #999;
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
     .creator-info {
         display: flex;
-        justify-content: flex-start;
-        gap: 0.25rem;
-        font-size: 0.9rem;
-        color: #666;
-        padding-top: 0.5rem;
-        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        font-size: 14px;
+    }
+
+    .info-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .label {
+        color: #999;
+        font-weight: 500;
+    }
+
+    .maintainers-list {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .no-maintainers {
+        color: #999;
         font-style: italic;
     }
 
     @media (prefers-color-scheme: dark) {
-        .creator-info {
+        .description {
+            color: #ccc;
+        }
+        
+        .label {
+            color: #ccc;
+        }
+        
+        .no-maintainers {
             color: #999;
         }
     }
@@ -577,4 +692,32 @@
             color: #999;
         }
     }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .settings-container, .user-container {
+        position: relative;
+    }
+
+    .icon-button, .user-button {
+        background: transparent;
+        border: none;
+        color: #999;
+        padding: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+    }
+
+    .icon-button:hover, .user-button:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
 </style> 
