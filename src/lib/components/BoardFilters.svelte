@@ -103,6 +103,7 @@
             bind:value={searchText} 
             placeholder="Filter by keyword"
             class="search-input"
+            on:input={updateFilters}
         />
     </div>
     <div class="filter-right">

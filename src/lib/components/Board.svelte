@@ -405,7 +405,7 @@
                 <p class="board-description">{board.description}</p>                
             {/if}
         </div>
-        {#if !isEditingDetails && board.maintainers?.length > 0}
+        {#if !isEditingDetails}
             <div class="board-meta">
                 <div class="meta-group">
                     <span class="meta-label">Creator</span>
@@ -414,11 +414,15 @@
                 <div class="meta-divider"></div>
                 <div class="meta-group">
                     <span class="meta-label">Maintainers</span>
-                    <div class="maintainers-avatars">
+                    {#if board.maintainers?.length === 0}
+                        <span class="no-maintainer-label">None</span>
+                    {:else}
+                        <div class="maintainers-avatars">
                         {#each board.maintainers as maintainer}
                             <UserAvatar pubkey={maintainer} size={28} />
                         {/each}
-                    </div>
+                        </div>
+                    {/if}
                 </div>
             </div>
         {/if}
@@ -489,6 +493,7 @@
                         isNoZapBoard={board.isNoZapBoard}
                         readOnly={!canEdit}
                         cardToOpen={cardToOpen}
+                        onDeleteColumn={() => {}}
                     />
                 {/if}
             {/if}
@@ -567,14 +572,6 @@
         color: #666;
     }
 
-    .add-column-btn {
-        padding: 0.5rem 1rem;
-        background: #0052cc;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
 
     .add-column-form {
         background: #f4f5f7;
@@ -635,29 +632,7 @@
         margin-left: auto;
     }
 
-    .board-btn {
-        padding: 0.5rem 1rem;
-        background: #f4f5f7;
-        color: #42526e;
-        border: 1px solid #dfe1e6;
-        border-radius: 4px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
 
-    .board-btn:hover {
-        background: #ebecf0;
-    }
-
-    .board-btn:disabled,
-    .add-column-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        /* Keep the hover style even when disabled for better UX */
-        pointer-events: auto;
-    }
 
     @media (prefers-color-scheme: dark) {
         .board {
@@ -676,11 +651,6 @@
             color: #333;
         }
 
-        .board-btn:disabled:hover,
-        .add-column-btn:disabled:hover {
-            background: #1e1855;
-            opacity: 0.5;
-        }
     }
 
     .board-header {
@@ -818,37 +788,13 @@
         justify-content: flex-start;
     }
 
-    .edit-btn {
-        background: none;
-        border: none;
-        color: #666;
-        cursor: pointer;
-        padding: 0.4rem;
-        border-radius: 4px;
-        margin-left: 0.5rem;
-        opacity: 0.7;
-    }
 
-    .edit-btn:hover {
-        opacity: 1;
-        background: rgba(0, 0, 0, 0.05);
-    }
 
     .title-section {
         display: flex;
         align-items: center;
     }
 
-    .maintainers-section {
-        margin-top: 1rem;
-    }
-
-    .maintainers-section span {
-        font-size: 1rem;
-        margin: 0 0 0.5rem 0;
-        color: #666;
-        font-weight: bold;
-    }
 
     .cancel-btn,
     .save-btn {
@@ -881,13 +827,7 @@
             color: #fff;
         }
 
-        .maintainers-section {
-            border-top-color: #444;
-        }
 
-        .maintainers-section span {
-            color: #999;
-        }
 
         .cancel-btn {
             background: #1d1d1d;
@@ -895,17 +835,6 @@
         }
     }
 
-    .maintainers-display {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
-    }
-
-    .maintainers-display .label {
-        color: #666;
-        font-size: 0.9rem;
-    }
 
     .maintainers-avatars {
         display: flex;
@@ -914,11 +843,7 @@
         align-items: center;
     }
 
-    @media (prefers-color-scheme: dark) {
-        .maintainers-display .label {
-            color: #999;
-        }
-    }
+
 
     .icon-button {
         background: transparent;
@@ -1000,6 +925,11 @@
         flex-wrap: wrap;
     }
 
+    .no-maintainer-label {
+        color: #999;
+        font-size: 0.9rem;
+    }
+
     @media (prefers-color-scheme: light) {
         .board-description {
             color: #333;
@@ -1015,6 +945,10 @@
 
         .meta-divider {
             background: #ddd;
+        }
+
+        .no-maintainer-label {
+            color: #666;
         }
     }
 </style> 
