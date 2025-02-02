@@ -9,6 +9,7 @@
     import AlertModal from './AlertModal.svelte';
     import { getUserWithProfileFromPubKey } from '../utils/user';
     import UserAvatar from './UserAvatar.svelte';
+    import { toastStore } from '../stores/toast';
 
     let showCreateBoard = false;
     let boards: KanbanBoard[] = [];
@@ -17,8 +18,6 @@
     let loading = false;
     let currentUser: NDKUser | null = null;
     let currentLoginMethod: LoginMethod | null = null;
-    let copySuccess: { [key: string]: boolean } = {};
-    let copyTimeouts: { [key: string]: NodeJS.Timeout } = {};
     let errorMessage: string | null = null;
 
     interface EditState {
@@ -109,19 +108,15 @@
     function copyBoardPermalink(board: KanbanBoard, event: MouseEvent) {
         event.stopPropagation();
         
-        // Clear any existing timeout for this board
-        if (copyTimeouts[board.id]) {
-            clearTimeout(copyTimeouts[board.id]);
-        }
-
         const permalink = `${window.location.origin}/#/board/${board.pubkey}/${board.id}`;
         
-        navigator.clipboard.writeText(permalink).then(() => {
-            copySuccess[board.id] = true;
-            copyTimeouts[board.id] = setTimeout(() => {
-                copySuccess[board.id] = false;
-            }, 2000);
-        });
+        navigator.clipboard.writeText(permalink)
+            .then(() => {
+                toastStore.addToast('Permalink copied to clipboard', 'success');
+            })
+            .catch(() => {
+                toastStore.addToast('Failed to copy permalink', 'error');
+            });
     }
 
     function startEdit(board: KanbanBoard, field: 'title' | 'description', event: MouseEvent) {
@@ -344,15 +339,11 @@
                                 <h3>{board.title}</h3>
                         </div>
                         <button 
-                            class="permalink-button" 
+                            class="icon-button" 
                             on:click={(e) => copyBoardPermalink(board, e)}
                             title="Copy permalink"
                         >
-                            {#if copySuccess[board.id]}
-                                ✓
-                            {:else}
-                                🔗
-                            {/if}
+                            <span class="material-icons">link</span>
                         </button>
                     </div>
                     
@@ -456,22 +447,6 @@
 
     .board-header h3 {
         margin: 0;
-    }
-
-    .permalink-button {
-        background: none;
-        border: none;
-        padding: 0.2rem;
-        cursor: pointer;
-        font-size: 1rem;
-        opacity: 0.6;
-        border-radius: 4px;
-        transition: opacity 0.2s, background-color 0.2s;
-    }
-
-    .permalink-button:hover {
-        opacity: 1;
-        background: rgba(0, 0, 0, 0.05);
     }
 
     .title-section, .description-section {
