@@ -3,6 +3,7 @@
     import { kanbanStore } from '../stores/kanban';
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
+    import type { NDKKind } from '@nostr-dev-kit/ndk';
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
@@ -17,6 +18,10 @@
     export let isUnmapped: boolean = false;
     export let readOnly: boolean = false;
 
+    interface MaintainersListProps {
+        pubkey: string;
+        displayName: string;
+    }
 
     let title = card.title;
     let status = card.status;
@@ -48,6 +53,11 @@
     let selectedLinkType: 'parent-child' | 'blocked-by' = 'parent-child';
     let linkError: string | null = null;
     let loadingLinks: boolean = false;
+    let maintainers: MaintainersListProps[] = [];
+    let loadingMaintainers = false;
+    let errorLoadingMaintainers: string | null = null;
+
+
 
     onMount(async () => {
         board = getContext('board');
@@ -94,11 +104,16 @@
             }            
         });
 
+        if (board) { 
+            await loadMaintainers();
+        }
+
         return () => {
                 unsubscribeNdk();
                 if(unsubKanban){
                     unsubKanban();
                 }
+                
         };
     });
 
@@ -147,7 +162,7 @@
     }
 
     async function validateAssignee(value: string) {
-        if (!value.trim()) {
+        if (!value) {
             currentAssigneeDisplay = null;
             isLoadingAssignee = false;
             assigneeError = null;
@@ -283,7 +298,7 @@
         if(editor){
             editor.setEditable(canEditCard);
         }
-    } 
+    }
 
     function copyLinkString() {
         const linkString = `${boardPubkey}:${boardId}:${card.dTag}`;
@@ -368,6 +383,34 @@
         incomingLinks = card.incomingLinks = await kanbanStore.getIncomingLinkedCards(boardPubkey, boardId, card.dTag);
         loadingLinks = false;
     }
+
+    async function loadMaintainers() {
+        loadingMaintainers = true;
+        errorLoadingMaintainers = null;
+
+        try {
+            if (!board?.maintainers || !Array.isArray(board.maintainers)) {
+                throw new Error("Invalid board data: Maintainers list is missing or not an array.");
+            }
+
+            maintainers = await Promise.all(board.maintainers.map(async (maintainerPubkey: string) => {
+                try {
+                    const displayName = await getUserDisplayName(maintainerPubkey);
+                    return { nPubKey: maintainerPubkey, nPubName: displayName };
+                } catch {
+                    return { nPubKey: maintainerPubkey, nPubName: "Anonymous" };
+                }
+            }));
+
+        } catch (error) {
+            errorLoadingMaintainers = error instanceof Error ? error.message : "Unknown error loading maintainers";
+            console.error(errorLoadingMaintainers);
+        } finally {
+            loadingMaintainers = false;
+        }
+    }
+
+
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -442,34 +485,37 @@
                             </button>
                         </div>
                     {/each}
-                    {#if assignees.length === 0}
+                    {#if loadingMaintainers}
+                        <div>Loading assignees...</div>
+                    {/if}
+                    {#if !loadingMaintainers && assignees.length === 0}
                         <div>No assignees</div>
                     {/if}
                 </div>
                 {#if canEditCard}
                 <div class="add-assignee">
-                    <div class="assignee-input-wrapper">
-                        <input
-                            bind:value={newAssignee}
-                            disabled = {!canEditCard}
-                            placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
-                            on:input={() => validateAssignee(newAssignee)}
-                            on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
-                        />
-                        {#if isLoadingAssignee}
-                            <div class="validation-feedback">Loading...</div>
-                        {:else if currentAssigneeDisplay}
-                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
-                        {:else if assigneeError}
-                            <div class="validation-feedback error">{assigneeError}</div>
-                        {/if}
+                    <div class="assignee-select-wrapper">
+                        <select 
+                            bind:value={newAssignee} 
+                            disabled={!canEditCard} 
+                            on:change={() => validateAssignee(newAssignee)}
+                            class="assignee-select-box">
+                            <option  value="" disabled selected>Select Assignee</option>
+                            {#if loadingMaintainers}
+                                <option value="">Loading maintainers...</option>
+                            {:else}
+                                {#each maintainers as maintainer}
+                                    <option value={maintainer.pubkey}>{maintainer.displayName} ({maintainer.pubkey.slice(0,5)}:{maintainer.pubkey.slice(maintainer.pubkey.length-6, maintainer.pubkey.length-1)})</option>
+                                {/each}
+                            {/if}
+                        </select>
                     </div>
                     <button 
                         type="button" 
                         on:click={() => addAssignee()}
-                        disabled={!canEditCard || !currentAssigneeDisplay}
+                        disabled={!canEditCard}
                     >
-                        Add Assignee
+                        Add
                     </button>
                 </div>
                 {/if}
@@ -570,148 +616,148 @@
                                                     rel="noopener noreferrer"
                                                     class="linked-card-title"
                                                 >
-                                                    {link.cardTitle}
-                                                </a>
-                                                <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
-                                                <button 
-                                                    type="button" 
-                                                    class="remove-link-btn" 
-                                                    title="Remove this outgoing link"
-                                                    on:click={() => deleteOutgoingLink(link)}
-                                                >
-                                                    &times;
-                                                </button>
-                                            </div>
-                                            <div class="linked-card-board">Board: {link.boardTitle}</div>
+                                                {link.cardTitle}
+                                            </a>
+                                            <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
+                                            <button 
+                                                type="button" 
+                                                class="remove-link-btn" 
+                                                title="Remove this outgoing link"
+                                                on:click={() => deleteOutgoingLink(link)}
+                                            >
+                                                &times;
+                                            </button>
                                         </div>
+                                        <div class="linked-card-board">Board: {link.boardTitle}</div>
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+                {:else}
+                No outgoing links
+                {/if}
+
+                <h4>Incoming links <span class="material-icons link-symbol-title" title="Incoming link">call_received</span></h4>
+                <div class="links-subtitle">
+                    Incoming links are defined in some other card.
+                </div>
+                {#if (incomingLinks && incomingLinks.length > 0)}                    
+                    <div class="links-list">
+                        {#each Object.entries(groupByLinkLabel(incomingLinks, 'backwardLabel')) as [backwardLabel, links]}
+                            <div class="link-group">
+                                <h5 class="link-group-label">This card {backwardLabel}:</h5>
+                                <div class="linked-cards">
+                                    {#each links as link}
+                                    <div class="linked-card">
+                                        <div class="linked-card-content">
+                                            <!-- material icon for incoming -->
+                                            <span class="material-icons link-symbol" title="Incoming link">call_received</span>
+                                            <a 
+                                                href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                class="linked-card-title"
+                                            >
+                                                {link.cardTitle}
+                                            </a>
+                                            <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
+                                            
+                                        </div>
+                                        <div class="linked-card-board">Board: {link.boardTitle}</div>
+                                    </div>
                                     {/each}
                                 </div>
                             </div>
                         {/each}
                     </div>
-                    {:else}
-                    No outgoing links
-                    {/if}
+                {:else}
+                No incoming links
+                {/if}
 
-                    <h4>Incoming links <span class="material-icons link-symbol-title" title="Incoming link">call_received</span></h4>
-                    <div class="links-subtitle">
-                        Incoming links are defined in some other card.
+                {#if canEditCard}
+                <h4>Link another card</h4>
+                    <div class="add-link">
+                        <div class="link-type-select">
+                            <select bind:value={selectedLinkType}>
+                                <option value="parent-child">Child of</option>
+                                <option value="blocked-by">Blocked By</option>
+                            </select>
+                        </div>
+                        <div class="link-input-wrapper">
+                            <input
+                                bind:value={newLinkString}
+                                placeholder="Paste the linking string copied from another card here"
+                                type="text"
+                            />
+                            {#if linkError}
+                                <div class="error-message">{linkError}</div>
+                            {/if}
+                        </div>
+                        <button 
+                            type="button" 
+                            disabled={!newLinkString.trim()}
+                            on:click={addLink}
+                        >
+                            Link
+                        </button>
                     </div>
-                    {#if (incomingLinks && incomingLinks.length > 0)}                    
-                        <div class="links-list">
-                            {#each Object.entries(groupByLinkLabel(incomingLinks, 'backwardLabel')) as [backwardLabel, links]}
-                                <div class="link-group">
-                                    <h5 class="link-group-label">This card {backwardLabel}:</h5>
-                                    <div class="linked-cards">
-                                        {#each links as link}
-                                        <div class="linked-card">
-                                            <div class="linked-card-content">
-                                                <!-- material icon for incoming -->
-                                                <span class="material-icons link-symbol" title="Incoming link">call_received</span>
-                                                <a 
-                                                    href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    class="linked-card-title"
-                                                >
-                                                    {link.cardTitle}
-                                                </a>
-                                                <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
-                                                
-                                            </div>
-                                            <div class="linked-card-board">Board: {link.boardTitle}</div>
-                                        </div>
-                                        {/each}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    {:else}
-                    No incoming links
-                    {/if}
-
-                    {#if canEditCard}
-                    <h4>Link another card</h4>
-                        <div class="add-link">
-                            <div class="link-type-select">
-                                <select bind:value={selectedLinkType}>
-                                    <option value="parent-child">Child of</option>
-                                    <option value="blocked-by">Blocked By</option>
-                                </select>
-                            </div>
-                            <div class="link-input-wrapper">
-                                <input
-                                    bind:value={newLinkString}
-                                    placeholder="Paste the linking string copied from another card here"
-                                    type="text"
-                                />
-                                {#if linkError}
-                                    <div class="error-message">{linkError}</div>
-                                {/if}
-                            </div>
-                            <button 
-                                type="button" 
-                                disabled={!newLinkString.trim()}
-                                on:click={addLink}
-                            >
-                                Link
-                            </button>
-                        </div>
-                    {/if}
-                </div>
                 {/if}
             </div>
-
-            <div class="section">
-                <label>Clone to Board</label>
-                <div class="board-selector">
-                    {#if loadingBoards}
-                        <div class="loading-state">Loading boards...</div>
-                    {:else if boardsICanCreateCardsIn.length === 0}
-                        <div class="empty-state">No boards available</div>
-                    {:else}
-                        <select bind:value={selectedBoardId}>
-                            <option value="">Select a board</option>
-                            {#each boardsICanCreateCardsIn as board}
-                                    <option value={board.id}>{board.title}</option>
-                            {/each}
-                        </select>
-                        <button 
-                            class="copy-button" 
-                            disabled={!selectedBoardId || isCloning || cloneSuccess}
-                            on:click={handleCloneCard}
-                        >
-                            {#if isCloning}
-                                <span class="material-icons">hourglass_top</span>
-                                Cloning...
-                            {:else if cloneSuccess}
-                                <span class="material-icons success-icon">check_circle</span>
-                                Cloned
-                            {:else}
-                                Clone as new card
-                            {/if}
-                        </button>
-                    {/if}
-                </div>
-            </div>
+            {/if}
         </div>
 
-        <footer>
-            <button type="button" class="cancel" on:click={onClose}>
-                Cancel
-            </button>
-            {#if canEditCard}
-            <button 
-                type="button" 
-                class="save" 
-                on:click={handleSave}
-                disabled={isSaving || !canEditCard}
-            >
-                {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
-            {/if}
-        </footer>
+        <div class="section">
+            <label>Clone to Board</label>
+            <div class="board-selector">
+                {#if loadingBoards}
+                    <div class="loading-state">Loading boards...</div>
+                {:else if boardsICanCreateCardsIn.length === 0}
+                    <div class="empty-state">No boards available</div>
+                {:else}
+                    <select bind:value={selectedBoardId}>
+                        <option value="">Select a board</option>
+                        {#each boardsICanCreateCardsIn as board}
+                                <option value={board.id}>{board.title}</option>
+                        {/each}
+                    </select>
+                    <button 
+                        class="copy-button" 
+                        disabled={!selectedBoardId || isCloning || cloneSuccess}
+                        on:click={handleCloneCard}
+                    >
+                        {#if isCloning}
+                            <span class="material-icons">hourglass_top</span>
+                            Cloning...
+                        {:else if cloneSuccess}
+                            <span class="material-icons success-icon">check_circle</span>
+                            Cloned
+                        {:else}
+                            Clone as new card
+                        {/if}
+                    </button>
+                {/if}
+            </div>
+        </div>
     </div>
+
+    <footer>
+        <button type="button" class="cancel" on:click={onClose}>
+            Cancel
+        </button>
+        {#if canEditCard}
+        <button 
+            type="button" 
+            class="save" 
+            on:click={handleSave}
+            disabled={isSaving || !canEditCard}
+        >
+            {isSaving ? 'Saving...' : 'Save Changes'}
+        </button>
+        {/if}
+    </footer>
+</div>
 </div>
 
 <style>
@@ -975,13 +1021,6 @@
         gap: 0.5rem;
     }
 
-    .add-assignee input {
-        flex: 1;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-
     .add-assignee button {
         white-space: nowrap;
         padding: 0.5rem 1rem;
@@ -1029,10 +1068,18 @@
         }        
     }
 
-    .assignee-input-wrapper {
+    .assignee-select-wrapper {
         position: relative;
         flex: 1;
         margin-bottom: 1rem;
+    }
+
+    .assignee-select-box {
+        width: 100%; 
+        padding: 8px; 
+        font-size: 14px; 
+        border: 1px solid #ccc;
+        border-radius: 4px; 
     }
 
     .validation-feedback {
@@ -1069,15 +1116,6 @@
     .add-assignee button:disabled {
         background: #ccc;
         cursor: not-allowed;
-    }
-
-    .assignee-input-wrapper input {
-        height: 36px;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        width: 100%;
-        box-sizing: border-box;
     }
 
     .validation-feedback.error {
