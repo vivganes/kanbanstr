@@ -19,8 +19,8 @@
     export let readOnly: boolean = false;
 
     interface MaintainersListProps {
-        nPubKey: string;
-        nPubName: string;
+        pubkey: string;
+        displayName: string;
     }
 
     let title = card.title;
@@ -107,7 +107,6 @@
         if (board) { 
             await loadMaintainers();
         }
-        updateAssignees();
 
         return () => {
                 unsubscribeNdk();
@@ -411,15 +410,6 @@
         }
     }
 
-    function updateAssignees() {
-        isLoadingAssignee = true;
-        let ownerNpub = card.pubkey;
-        if (!assignees.includes(ownerNpub)) {
-            assignees = [...assignees, ownerNpub];
-        } 
-        isLoadingAssignee = false; 
-    }
-
 
 </script>
 
@@ -490,16 +480,16 @@
                             {:catch}
                                 <span>Anonymous</span>
                             {/await}
-
-                            {#if assignee != card.pubkey}
-                                <button type="button" class="remove-btn" on:click={() => removeAssignee(i)}>
-                                    &times;
-                                </button>
-                            {/if}
+                            <button type="button" class="remove-btn" on:click={() => removeAssignee(i)}>
+                                &times;
+                            </button>
                         </div>
                     {/each}
-                    {#if assignees.length === 0}
-                        <div>Loading...</div>
+                    {#if loadingMaintainers}
+                        <div>Loading assignees...</div>
+                    {/if}
+                    {#if !loadingMaintainers && assignees.length === 0}
+                        <div>No assignees</div>
                     {/if}
                 </div>
                 {#if canEditCard}
@@ -515,7 +505,7 @@
                                 <option value="">Loading maintainers...</option>
                             {:else}
                                 {#each maintainers as maintainer}
-                                    <option value={maintainer.nPubKey}>{maintainer.nPubName}</option>
+                                    <option value={maintainer.pubkey}>{maintainer.displayName} ({maintainer.pubkey.slice(0,5)}:{maintainer.pubkey.slice(maintainer.pubkey.length-6, maintainer.pubkey.length-1)})</option>
                                 {/each}
                             {/if}
                         </select>
