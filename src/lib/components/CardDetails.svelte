@@ -4,7 +4,6 @@
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
     import type { NDKKind } from '@nostr-dev-kit/ndk';
-    import type { NDKKind } from '@nostr-dev-kit/ndk';
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
@@ -54,7 +53,6 @@
     let selectedLinkType: 'parent-child' | 'blocked-by' = 'parent-child';
     let linkError: string | null = null;
     let loadingLinks: boolean = false;
-    let selectedBoard: KanbanBoard | null = null; 
     let maintainers: MaintainersListProps[] = [];
     let loadingMaintainers = false;
     let errorLoadingMaintainers: string | null = null;
@@ -303,53 +301,6 @@
         }
     }
 
-    async function loadBoardAndMaintainers(boardId: string) {
-        loadingMaintainers = true;
-        errorLoadingMaintainers = null;
-        try {
-            const filter = {
-                kinds: [30301 as NDKKind],
-                '#d': [boardId]
-            };
-            const events = await ndkInstance.ndk?.fetchEvents(filter);
-            if (!events || events.size === 0) {
-                throw new Error("Board not found");
-            }
-            const boardEvent = Array.from(events)[0];
-            selectedBoard = await kanbanStore.loadBoardByPubkeyAndId(boardEvent.pubkey, boardId);
-            if (selectedBoard) {
-                let maintainerList = selectedBoard.maintainers || [];
-                await Promise.all(maintainerList.map(async (maintainerPubkey) => {
-                try {
-                    const displayName = await getUserDisplayName(maintainerPubkey);
-                    maintainers.push({nPubKey:maintainerPubkey, nPubName: displayName}); 
-                } catch (error) {
-                    console.error("Error fetching maintainer display name:", error);
-                    maintainers.push({nPubKey:maintainerPubkey, nPubName: "Anonymous"}); 
-                }
-            }));
-            } else {
-                errorLoadingMaintainers = "Board not found";
-            }
-        } catch (error) {
-            errorLoadingMaintainers = error instanceof Error ? error.message : 'Error loading maintainers';
-            console.error(errorLoadingMaintainers);
-        } finally {
-            loadingMaintainers = false;
-        }
-    }
-
-    function updateAssignees() {
-        isLoadingAssignee = true;
-        let ownerNpub = card.pubkey;
-        if (!assignees.includes(ownerNpub)) {
-            assignees = [...assignees, ownerNpub];
-        } 
-        isLoadingAssignee = false; 
-    }
-
-    } 
-
     function copyLinkString() {
         const linkString = `${boardPubkey}:${boardId}:${card.dTag}`;
         navigator.clipboard.writeText(linkString);
@@ -459,7 +410,6 @@
             loadingMaintainers = false;
         }
     }
-
 
     function updateAssignees() {
         isLoadingAssignee = true;
