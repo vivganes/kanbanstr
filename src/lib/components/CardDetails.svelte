@@ -1,17 +1,18 @@
 <script lang="ts">
-    import type { Card } from '../stores/kanban';
+    import type { Card, CardLink } from '../stores/kanban';
     import { kanbanStore } from '../stores/kanban';
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
     import type { NDKKind } from '@nostr-dev-kit/ndk';
     import { Markdown } from 'tiptap-markdown';
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
     import type { KanbanBoard } from '../stores/kanban';
     import { toastStore } from '../stores/toast';
 
     export let card: Card;
+    export let boardPubkey: string;
     export let boardId: string;
     export let onClose: () => void;
     export let isUnmapped: boolean = false;
@@ -30,6 +31,8 @@
     let attachments = [...(card.attachments || [])];
     let newTag = '';
     let tTags = [...(card.tTags || [] )];
+    let outgoingLinks = [...(card.outgoingLinks || [])];
+    let incomingLinks = [...(card.incomingLinks || [])];
     let newAssignee = '';
     let assignees = [...new Set(card.assignees || [])];
     let editor: Editor;
@@ -41,8 +44,8 @@
     let currentAssigneeDisplay: string | null = null;
     let isLoadingAssignee = false;
     let assigneeError: string | null = null;
-    let showBoardSelector = false;
     let boardsICanCreateCardsIn: KanbanBoard[] = [];
+    let board: KanbanBoard;
     let selectedBoardId: string = '';
     let loadingBoards = true;
     let cloneSuccess = false;
@@ -52,7 +55,15 @@
     let loadingMaintainers = false;
     let errorLoadingMaintainers: string | null = null;
 
+    let newLinkString = '';
+    let selectedLinkType: 'parent-child' | 'blocked-by' = 'parent-child';
+    let linkError: string | null = null;
+    let loadingLinks: boolean = false;
+
+
     onMount(async () => {
+        board = getContext('board');
+        fillLinksForCard();
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -119,10 +130,22 @@
 
     $: canEditCard, changeMarkdownEditability();
 
+
     function addAttachment() {
         if (newAttachment.trim()) {
             attachments = [...attachments, newAttachment.trim()];
             newAttachment = '';
+        }
+    }
+
+    function getForwardAndBackwardLinkLabels(linkType: string): [string, string] {
+        switch (linkType) {
+            case 'parent-child':
+                return ['is a child of', 'is a parent of'];
+            case 'blocked-by':
+                return ['is blocked by', 'blocks'];
+            default:
+            return ['is a child of', 'is a parent of'];
         }
     }
 
@@ -194,7 +217,13 @@
         try {
             isSaving = true;
             error = null;
-            
+
+            // separate the deleted outgoing  links
+            const oldOutgoingLinks = card.outgoingLinks || [];
+            const currentOutgoingLinks = outgoingLinks;
+            const newOutgoingLinks = currentOutgoingLinks.filter(link => !oldOutgoingLinks.some(l => l.boardPubKey === link.boardPubKey && l.boardDTag === link.boardDTag && l.cardDTag === link.cardDTag));
+            const deletedOutgoingLinks = oldOutgoingLinks.filter(link => !currentOutgoingLinks.some(l => l.boardPubKey === link.boardPubKey && l.boardDTag === link.boardDTag && l.cardDTag === link.cardDTag));
+
             await kanbanStore.updateCard(boardId, {
                 ...card,
                 title: title.trim(),
@@ -202,8 +231,42 @@
                 description: description.trim(),
                 attachments,
                 tTags,
-                assignees
+                assignees,
+                outgoingLinks: outgoingLinks
             });
+
+            //update newly linked card's incoming links in local state
+            for (let link of newOutgoingLinks) {
+                await kanbanStore.updateStateWithIncomingLinkToACard(link.boardPubKey, link.boardDTag, link.cardDTag, {
+                    boardPubKey: boardPubkey,
+                    boardDTag: boardId,
+                    boardTitle: board.title,
+                    cardDTag: card.dTag,
+                    linkType: {
+                        forwardLabel: link.linkType.forwardLabel,
+                        backwardLabel: link.linkType.backwardLabel
+                    },
+                    cardTitle: title,
+                    cardStatus: status
+                });
+            }
+
+            if(deletedOutgoingLinks){
+                console.log('deletedOutgoingLinks:', deletedOutgoingLinks);
+                //update the deleted outgoing links in local state
+                for (let link of deletedOutgoingLinks) {
+                    await kanbanStore.updateStateWithDeletedOutgoingLinkFromACard(link.boardPubKey, link.boardDTag, link.cardDTag, {
+                        boardPubKey: boardPubkey,
+                        boardDTag: boardId,
+                        boardTitle: board.title,
+                        cardDTag: card.dTag,
+                        linkType: {
+                            forwardLabel: link.linkType.forwardLabel,
+                            backwardLabel: link.linkType.backwardLabel
+                        }
+                    });
+                }
+            }
 
             onClose();
         } catch (err) {
@@ -285,6 +348,91 @@
         isLoadingAssignee = false; 
     }
 
+    } 
+
+    function copyLinkString() {
+        const linkString = `${boardPubkey}:${boardId}:${card.dTag}`;
+        navigator.clipboard.writeText(linkString);
+        toastStore.addToast('Linking string copied to clipboard');
+    }
+
+    
+
+    function validateLinkString(linkString: string): boolean {
+        // Format should be: kanban:pubkey:boardDTag:cardDTag
+        const parts = linkString.split(':');
+        return parts.length === 4 && parts[0] === 'kanban' && parts.every(part => part.length > 0);
+    }
+    
+
+    function isSameLinkAlreadyPresent(linkString: string, linkType: string): boolean {
+        return outgoingLinks.some(link => {
+            return link.boardPubKey === linkString.split(':')[1] && 
+                link.boardDTag === linkString.split(':')[2] && 
+                link.cardDTag === linkString.split(':')[3] 
+            });        
+    }
+    
+
+    async function addLink() {
+        const alreadyPresent = isSameLinkAlreadyPresent(newLinkString, selectedLinkType);
+        if(alreadyPresent){
+            linkError = 'Link to the same card already present. Delete existing link to add again.';
+            return;
+        }
+        if (newLinkString.trim() && selectedLinkType &&  !alreadyPresent) {
+            if (validateLinkString(newLinkString)) {
+
+                const labels = getForwardAndBackwardLinkLabels(selectedLinkType);
+                const card = await kanbanStore.getSingleCard(newLinkString.split(':')[1],newLinkString.split(':')[2], newLinkString.split(':')[3])
+                if(!card){
+                    linkError = 'Card not found';
+                    return;
+                }
+                const newLinkedCard: CardLink = {
+                    boardPubKey: newLinkString.split(':')[1],
+                    boardDTag: newLinkString.split(':')[2],
+                    cardDTag: newLinkString.split(':')[3],
+                    linkType: {
+                        forwardLabel: labels[0],
+                        backwardLabel: labels[1]
+                    },
+                    // get card title and status
+                    cardTitle: card.title,
+                    cardStatus: card.status,
+                    boardTitle: card.boardTitle                    
+                }
+                outgoingLinks = [...outgoingLinks, newLinkedCard];
+                newLinkString = '';
+                linkError = null;
+            } else {
+                linkError = 'Invalid linking string';
+            }
+        }
+    }
+
+    function deleteOutgoingLink(outgoingLink: CardLink) {
+        outgoingLinks = outgoingLinks.filter(link => link !== outgoingLink);
+    }
+
+    function groupByLinkLabel(links: CardLink[], labelType: 'forwardLabel'|'backwardLabel') {
+        return links.reduce((groups, link) => {
+            const label = link.linkType[labelType];
+            if (!groups[label]) {
+                groups[label] = [];
+            }
+            groups[label].push(link);
+            return groups;
+        }, {} as Record<string, CardLink[]>);
+    }
+
+
+    async function fillLinksForCard() {
+        loadingLinks = true;
+        outgoingLinks = card.outgoingLinks = await kanbanStore.getOutgoingLinkedCards(card.iTags);
+        incomingLinks = card.incomingLinks = await kanbanStore.getIncomingLinkedCards(boardPubkey, boardId, card.dTag);
+        loadingLinks = false;
+    }
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -422,7 +570,7 @@
                     <button type="button" 
                     disabled={!canEditCard || !newAttachment.trim()}
                     on:click={addAttachment}>
-                        Add Link
+                        Add Attachment
                     </button>
                 </div>
                 {/if}
@@ -459,6 +607,125 @@
                     on:click={addTag}>
                         Add Tag
                     </button>
+                </div>
+                {/if}
+            </div>
+
+            <div class="section">
+                <h3>Card Links</h3>
+                {#if loadingLinks}
+                    <div>Loading links...</div>
+                {:else}                    
+                <div class="card-links">
+                    <h4>Outgoing links <span class="material-icons link-symbol-title" title="Outgoing links are defined in this card">call_made</span></h4>
+                    <div class="links-subtitle">
+                        Outgoing links are defined in this card.
+                    </div>
+                    {#if (outgoingLinks && outgoingLinks.length > 0)}                    
+                    <div class="links-list">
+                        {#each Object.entries(groupByLinkLabel(outgoingLinks, 'forwardLabel')) as [forwardLabel, links]}
+                            <div class="link-group">
+                                <h5 class="link-group-label">This card {forwardLabel}:</h5>
+                                <div class="linked-cards">
+                                    {#each links as link, i}
+                                        <div class="linked-card">
+                                            <div class="linked-card-content">
+                                                <!-- material icon for outgoing -->
+                                                <span class="material-icons link-symbol" title="Outgoing link">call_made</span>
+                                                <a 
+                                                    href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    class="linked-card-title"
+                                                >
+                                                    {link.cardTitle}
+                                                </a>
+                                                <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
+                                                <button 
+                                                    type="button" 
+                                                    class="remove-link-btn" 
+                                                    title="Remove this outgoing link"
+                                                    on:click={() => deleteOutgoingLink(link)}
+                                                >
+                                                    &times;
+                                                </button>
+                                            </div>
+                                            <div class="linked-card-board">Board: {link.boardTitle}</div>
+                                        </div>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                    {:else}
+                    No outgoing links
+                    {/if}
+
+                    <h4>Incoming links <span class="material-icons link-symbol-title" title="Incoming link">call_received</span></h4>
+                    <div class="links-subtitle">
+                        Incoming links are defined in some other card.
+                    </div>
+                    {#if (incomingLinks && incomingLinks.length > 0)}                    
+                        <div class="links-list">
+                            {#each Object.entries(groupByLinkLabel(incomingLinks, 'backwardLabel')) as [backwardLabel, links]}
+                                <div class="link-group">
+                                    <h5 class="link-group-label">This card {backwardLabel}:</h5>
+                                    <div class="linked-cards">
+                                        {#each links as link}
+                                        <div class="linked-card">
+                                            <div class="linked-card-content">
+                                                <!-- material icon for incoming -->
+                                                <span class="material-icons link-symbol" title="Incoming link">call_received</span>
+                                                <a 
+                                                    href={`${window.location.origin}/#/board/${link.boardPubKey}/${link.boardDTag}/card/${link.cardDTag}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    class="linked-card-title"
+                                                >
+                                                    {link.cardTitle}
+                                                </a>
+                                                <span class="linked-card-status" title={'Status: '+ link.cardStatus}>{link.cardStatus}</span>
+                                                
+                                            </div>
+                                            <div class="linked-card-board">Board: {link.boardTitle}</div>
+                                        </div>
+                                        {/each}
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    {:else}
+                    No incoming links
+                    {/if}
+
+                    {#if canEditCard}
+                    <h4>Link another card</h4>
+                        <div class="add-link">
+                            <div class="link-type-select">
+                                <select bind:value={selectedLinkType}>
+                                    <option value="parent-child">Child of</option>
+                                    <option value="blocked-by">Blocked By</option>
+                                </select>
+                            </div>
+                            <div class="link-input-wrapper">
+                                <input
+                                    bind:value={newLinkString}
+                                    placeholder="Paste the linking string copied from another card here"
+                                    type="text"
+                                />
+                                {#if linkError}
+                                    <div class="error-message">{linkError}</div>
+                                {/if}
+                            </div>
+                            <button 
+                                type="button" 
+                                disabled={!newLinkString.trim()}
+                                on:click={addLink}
+                            >
+                                Link
+                            </button>
+                        </div>
+                    {/if}
                 </div>
                 {/if}
             </div>
@@ -913,5 +1180,177 @@
         .loading-state {
             color: #ccc;
         }
+    }
+
+    .card-links {
+        margin-top: 0.5rem;
+    }
+
+    .copy-link-btn {
+        margin-bottom: 1rem;
+        background: #f4f5f7;
+        color: #42526e;
+    }
+
+    .links-list {
+        margin: 1rem 0;
+    }
+
+    .link-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        background: #f5f5f5;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+    }
+
+    .link-target {
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .add-link {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .link-type-select {
+        min-width: 150px;
+    }
+
+    .link-type-select select {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .link-input-wrapper {
+        flex: 1;
+        position: relative;
+    }
+
+    .link-input-wrapper input {
+        width: 95%;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+       
+
+        .link-type-select select,
+        .link-input-wrapper input {
+            background: #1d1d1d;
+            border-color: #444;
+            color: #fff;
+        }
+    }
+
+    .link-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .link-group-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin: 0.5rem 0;
+        font-weight: 500;
+    }
+
+    .linked-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .linked-card {
+        display: flex;
+        flex-direction: column;
+        padding: 0.75rem;
+        background: #e5eef8;
+        border-radius: 4px;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .linked-card:hover {
+        background: #c6a4e9;
+        transform: translateX(2px);
+    }
+
+    .linked-card-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .linked-card-content a {
+        text-decoration: none;
+        color: inherit;
+        flex: 1;
+    }
+
+    .linked-card-content a:hover {
+        text-decoration: underline;
+    }
+
+    .linked-card-title {
+        font-weight: 500;
+        flex: 1;
+    }
+
+    .linked-card-status {
+        font-size: 0.8rem;
+        color: #012d6e;
+        text-transform: uppercase;
+        padding: 0.25rem 0.5rem;
+        background: #ffffff;
+        border-radius: 12px;
+        white-space: nowrap;
+    }
+
+    .linked-card-board {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 0.25rem;
+    }
+
+    
+
+    .remove-link-btn {
+        background: none;
+        border: none;
+        color: #ff4444;
+        cursor: pointer;
+        padding: 0.25rem;
+        font-size: 1.2rem;
+        transition: opacity 0.2s ease;
+        line-height: 1;
+    }
+
+    .link-symbol-title {
+        font-size: 1rem;
+        color: #0052cc;
+    }
+
+    .link-symbol{
+        font-size: 1rem;
+        color: #0052cc;
+    }
+
+    .links-subtitle {
+        font-size: 0.9rem;
+        color: #666;
+        font-style: italic;
+        margin-top: -1rem;
     }
 </style> 
