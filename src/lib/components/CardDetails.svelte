@@ -18,7 +18,7 @@
     export let isUnmapped: boolean = false;
     export let readOnly: boolean = false;
 
-    interface MaintainersListProps {
+    interface PossibleAssigneesListProps {
         pubkey: string;
         displayName: string;
     }
@@ -53,9 +53,9 @@
     let selectedLinkType: 'parent-child' | 'blocked-by' = 'parent-child';
     let linkError: string | null = null;
     let loadingLinks: boolean = false;
-    let maintainers: MaintainersListProps[] = [];
-    let loadingMaintainers = false;
-    let errorLoadingMaintainers: string | null = null;
+    let possibleAssignees: PossibleAssigneesListProps[] = [];
+    let loadingPossibleAssignees = false;
+    let errorLoadingPossibleAssignees: string | null = null;
 
 
 
@@ -105,7 +105,7 @@
         });
 
         if (board) { 
-            await loadMaintainers();
+            await loadPossibleAssignees();
         }
 
         return () => {
@@ -384,29 +384,32 @@
         loadingLinks = false;
     }
 
-    async function loadMaintainers() {
-        loadingMaintainers = true;
-        errorLoadingMaintainers = null;
+    async function loadPossibleAssignees() {
+        loadingPossibleAssignees = true;
+        errorLoadingPossibleAssignees = null;
+
+        //add board owenr as possible assignee
+        possibleAssignees.push({ pubkey: board.pubkey, displayName: await getUserDisplayName(board.pubkey) });
 
         try {
-            if (!board?.maintainers || !Array.isArray(board.maintainers)) {
-                throw new Error("Invalid board data: Maintainers list is missing or not an array.");
-            }
+            if(board.maintainers){
+                for (const maintainerPubkey of board.maintainers){
+                    if(board.pubkey !== maintainerPubkey){                    
+                            try {
+                                const displayName = await getUserDisplayName(maintainerPubkey);
+                                possibleAssignees.push({ pubkey: maintainerPubkey, displayName: displayName });
+                            } catch {
+                                possibleAssignees.push({ pubkey: maintainerPubkey, displayName: "Anonymous" });
+                            }
+                        }
 
-            maintainers = await Promise.all(board.maintainers.map(async (maintainerPubkey: string) => {
-                try {
-                    const displayName = await getUserDisplayName(maintainerPubkey);
-                    return { nPubKey: maintainerPubkey, nPubName: displayName };
-                } catch {
-                    return { nPubKey: maintainerPubkey, nPubName: "Anonymous" };
-                }
-            }));
-
+                }              
+            }            
         } catch (error) {
-            errorLoadingMaintainers = error instanceof Error ? error.message : "Unknown error loading maintainers";
-            console.error(errorLoadingMaintainers);
+            errorLoadingPossibleAssignees = error instanceof Error ? error.message : "Unknown error loading maintainers";
+            console.error(errorLoadingPossibleAssignees);
         } finally {
-            loadingMaintainers = false;
+            loadingPossibleAssignees = false;
         }
     }
 
@@ -485,10 +488,10 @@
                             </button>
                         </div>
                     {/each}
-                    {#if loadingMaintainers}
+                    {#if loadingPossibleAssignees}
                         <div>Loading assignees...</div>
                     {/if}
-                    {#if !loadingMaintainers && assignees.length === 0}
+                    {#if !loadingPossibleAssignees && assignees.length === 0}
                         <div>No assignees</div>
                     {/if}
                 </div>
@@ -501,10 +504,10 @@
                             on:change={() => validateAssignee(newAssignee)}
                             class="assignee-select-box">
                             <option  value="" disabled selected>Select Assignee</option>
-                            {#if loadingMaintainers}
+                            {#if loadingPossibleAssignees}
                                 <option value="">Loading maintainers...</option>
                             {:else}
-                                {#each maintainers as maintainer}
+                                {#each possibleAssignees as maintainer}
                                     <option value={maintainer.pubkey}>{maintainer.displayName} ({maintainer.pubkey.slice(0,5)}:{maintainer.pubkey.slice(maintainer.pubkey.length-6, maintainer.pubkey.length-1)})</option>
                                 {/each}
                             {/if}
