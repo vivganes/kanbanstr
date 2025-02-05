@@ -477,9 +477,8 @@
         width: 100%; 
         padding: 8px; 
         font-size: 14px; 
-        border: 1px solid #ccc;
         border-radius: 4px; 
-        background-color: #333;
+
     }
 
     .add-assignee {
