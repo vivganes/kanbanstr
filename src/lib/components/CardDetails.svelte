@@ -388,7 +388,7 @@
         loadingPossibleAssignees = true;
         errorLoadingPossibleAssignees = null;
 
-        //add board owenr as possible assignee
+        //add board owner as possible assignee
         possibleAssignees.push({ pubkey: board.pubkey, displayName: await getUserDisplayName(board.pubkey) });
 
         try {
