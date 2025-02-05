@@ -1,10 +1,10 @@
 <script lang="ts">
-    import type { Card } from '../stores/kanban';
+    import type { Card, KanbanBoard } from '../stores/kanban';
     import { kanbanStore } from '../stores/kanban';
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
     import { Markdown } from 'tiptap-markdown';
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, getContext } from 'svelte';
     import AlertModal from './AlertModal.svelte';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
 
@@ -12,6 +12,11 @@
     export let columnName: string;
     export let aTagPointingToBoard: string;
     export let cardsCount: number;
+
+    interface PossibleAssigneesListProps {
+        pubkey: string;
+        displayName: string;
+    }
 
     let title = '';
     let description = '';
@@ -25,8 +30,13 @@
     let currentAssigneeDisplay: string | null = null;
     let isLoadingAssignee = false;
     let assigneeError: string | null = null;
+    let board: KanbanBoard;
+    let possibleAssignees: PossibleAssigneesListProps[] = [];
+    let loadingPossibleAssignees = false;
+    let errorLoadingPossibleAssignees: string | null = null;
 
-    onMount(() => {
+    onMount(async() => {
+        board = getContext('board');
         editor = new Editor({
             element: editorElement,
             extensions: [
@@ -42,6 +52,10 @@
                 description = editor.storage.markdown.getMarkdown();
             }
         });
+
+        if (board) { 
+            await loadPossibleAssignees();
+        }
     });
 
     onDestroy(() => {
@@ -127,6 +141,35 @@
             errorMessage = error instanceof Error ? error.message : 'Failed to create card';
         }
     }
+
+    async function loadPossibleAssignees() {
+        loadingPossibleAssignees = true;
+        errorLoadingPossibleAssignees = null;
+
+        //add board owner as possible assignee
+        possibleAssignees.push({ pubkey: board.pubkey, displayName: await getUserDisplayName(board.pubkey) });
+
+        try {
+            if(board.maintainers){
+                for (const maintainerPubkey of board.maintainers){
+                    if(board.pubkey !== maintainerPubkey){                    
+                            try {
+                                const displayName = await getUserDisplayName(maintainerPubkey);
+                                possibleAssignees.push({ pubkey: maintainerPubkey, displayName: displayName });
+                            } catch {
+                                possibleAssignees.push({ pubkey: maintainerPubkey, displayName: "Anonymous" });
+                            }
+                        }
+
+                }              
+            }            
+        } catch (error) {
+            errorLoadingPossibleAssignees = error instanceof Error ? error.message : "Unknown error loading maintainers";
+            console.error(errorLoadingPossibleAssignees);
+        } finally {
+            loadingPossibleAssignees = false;
+        }
+    }
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -174,29 +217,33 @@
                             </button>
                         </div>
                     {/each}
+                    {#if assignees.length === 0}
+                        <div>No assignees</div>
+                    {/if}
                 </div>
                 <div class="add-assignee">
-                    <div class="assignee-input-wrapper">
-                        <input
-                            bind:value={newAssignee}
-                            placeholder="Enter npub, NIP-05 (name@domain) / identifier, or hex pubkey"
-                            on:input={() => validateAssignee(newAssignee)}
-                            on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssignee())}
-                        />
-                        {#if isLoadingAssignee}
-                            <div class="validation-feedback">Loading...</div>
-                        {:else if currentAssigneeDisplay}
-                            <div class="validation-feedback valid">✓ {currentAssigneeDisplay}</div>
-                        {:else if assigneeError}
-                            <div class="validation-feedback error">{assigneeError}</div>
-                        {/if}
+                    <div class="assignee-select-wrapper">
+                        <select 
+                            bind:value={newAssignee} 
+                            disabled={loadingPossibleAssignees} 
+                            on:change={() => validateAssignee(newAssignee)}
+                            class="assignee-select-box">
+                            <option  value="" disabled selected>Select Assignee</option>
+                            {#if loadingPossibleAssignees}
+                                <option value="">Loading available maintainers...</option>
+                            {:else}
+                                {#each possibleAssignees as maintainer}
+                                    <option value={maintainer.pubkey}>{maintainer.displayName} ({maintainer.pubkey.slice(0,5)}:{maintainer.pubkey.slice(maintainer.pubkey.length-6, maintainer.pubkey.length-1)})</option>
+                                {/each}
+                            {/if}
+                        </select>
                     </div>
                     <button 
                         type="button" 
                         on:click={() => addAssignee()}
                         disabled={!currentAssigneeDisplay}
                     >
-                        Add Assignee
+                        Add
                     </button>
                 </div>
             </div>
@@ -420,10 +467,19 @@
         margin-bottom: 0.5rem;
     }
 
-     .assignee-input-wrapper {
+    .assignee-select-wrapper {
         position: relative;
         flex: 1;
         margin-bottom: 1rem;
+    }
+
+    .assignee-select-box {
+        width: 100%; 
+        padding: 8px; 
+        font-size: 14px; 
+        border: 1px solid #ccc;
+        border-radius: 4px; 
+        background-color: #333;
     }
 
     .add-assignee {
@@ -431,10 +487,6 @@
         gap: 0.5rem;
         margin-bottom: 1rem;
         align-items: flex-start;
-    }
-
-    .add-assignee input {
-        flex: 1;
     }
 
     .add-assignee button {
@@ -451,15 +503,6 @@
     .add-assignee button:disabled {
         background: #ccc;
         cursor: not-allowed;
-    }
-
-    .assignee-input-wrapper input {
-        height: 36px;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        width: 100%;
-        box-sizing: border-box;
     }
 
     .validation-feedback {
