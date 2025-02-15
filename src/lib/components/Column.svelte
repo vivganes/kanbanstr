@@ -6,6 +6,7 @@
     import { onMount, onDestroy } from 'svelte';
     import type { NDKUser } from '@nostr-dev-kit/ndk';
     import { slide } from 'svelte/transition';
+    import RenameColumnModal from './RenameColumnModal.svelte';
 
     export let column: Column;
     export let cards: Card[];
@@ -16,6 +17,7 @@
     export let isNoZapBoard: boolean = false;
     export let onDeleteColumn: () => void;
     export let board: KanbanBoard;
+    export let onRenameColumn: (oldName: string, newName: string, updateCards: boolean) => void;
 
     let showCreateModal = false;
     let isDragOver = false;
@@ -32,6 +34,7 @@
     let sortDirection = 'asc';
     let isCustomSorted = false;
     let isFilterSelected = false;
+    let showRenameModal = false;
 
     onMount(() => {
         const unsubscribe = ndkInstance.store.subscribe(state => {
@@ -177,6 +180,12 @@
         
         return `Sorted by ${sortType} (${direction})`;
     }
+
+    function handleRename(event: CustomEvent) {
+        const { newName, updateCards } = event.detail;
+        onRenameColumn(column.name, newName, updateCards);
+        showRenameModal = false;
+    }
 </script>
 
 <div 
@@ -193,15 +202,24 @@
 >
     <header class="column-header">
         <div class="title-row">
-            <h3>{column.name}</h3>        
-            {#if canEditBoard && !isUnmapped && showDeleteButton}
-                <button 
-                    class="delete-column-btn" 
-                    on:click|stopPropagation={onDeleteColumn}
-                    title="Delete column"
-                >
-                    ×
-                </button>
+            <h3>{column.name}</h3>
+            {#if canEditBoard && !isUnmapped}
+                <div class="column-actions">
+                    <button 
+                        class="rename-column-btn icon-button" 
+                        on:click|stopPropagation={() => showRenameModal = true}
+                        title="Rename column"
+                    >
+                        <span class="material-icons">edit</span>
+                    </button>
+                    <button 
+                        class="delete-column-btn" 
+                        on:click|stopPropagation={onDeleteColumn}
+                        title="Delete column"
+                    >
+                        ×
+                    </button>
+                </div>
             {/if}
         </div>
         <div class="column-toolbar">
@@ -334,6 +352,15 @@
             columnName={column.name}
             aTagPointingToBoard={`30301:${board.pubkey}:${board.id}`} 
             cardsCount={cards.length}
+        />
+    {/if}
+
+    {#if showRenameModal}
+        <RenameColumnModal
+            visible={showRenameModal}
+            columnName={column.name}
+            on:close={() => showRenameModal = false}
+            on:rename={handleRename}
         />
     {/if}
 </div>
@@ -634,6 +661,11 @@
     .no-results p {
         margin: 0;
         font-size: 0.9rem;
+    }
+
+    .rename-column-btn:hover{
+        background: #b3ceee !important;
+
     }
 
     @media (prefers-color-scheme: dark) {

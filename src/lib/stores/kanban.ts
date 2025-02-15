@@ -1284,6 +1284,29 @@ function createKanbanStore() {
         });
     }
 
+    function updateCardsAfterColumnRename(boardId: string, oldColumnName: string, newColumnName: string, updateCardStatuses: boolean) {
+        update(state => {
+            const boardCards = state.cards.get(boardId) || [];
+            const updatedCards = boardCards.map(card => {
+                if (card.status === oldColumnName && updateCardStatuses) {
+                    return {
+                        ...card,
+                        status: newColumnName
+                    };
+                }
+                return card;
+            });
+
+            const newCards = new Map(state.cards);
+            newCards.set(boardId, updatedCards);
+
+            return {
+                ...state,
+                cards: newCards
+            };
+        });
+    }
+
     return {
         subscribe,
         init,
@@ -1306,7 +1329,8 @@ function createKanbanStore() {
         getOutgoingLinkedCards,
         getIncomingLinkedCards,
         updateStateWithIncomingLinkToACard,
-        updateStateWithDeletedOutgoingLinkFromACard
+        updateStateWithDeletedOutgoingLinkFromACard,
+        updateCardsAfterColumnRename
     };
 }
 

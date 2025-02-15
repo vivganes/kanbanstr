@@ -318,6 +318,52 @@
     function toggleFilters() {
         showFilters = !showFilters; 
     }
+
+    async function handleRenameColumn(oldName: string, newName: string, updateCards: boolean) {
+        try {
+            const updatedColumns = board.columns.map(col => 
+                col.name === oldName ? { ...col, name: newName } : col
+            );
+
+            if (updateCards) {
+                // Update all cards in the column
+                const cardsToUpdate = cards.filter(card => card.status === oldName);
+                for (const card of cardsToUpdate) {
+                    await kanbanStore.updateCard(board.id, {
+                        ...card,
+                        status: newName
+                    });
+                }
+            }
+
+            // Update the board with new column name
+            await kanbanStore.updateBoard({
+                ...board,
+                columns: updatedColumns
+            });
+
+            // Update the internal state of cards in the store
+            kanbanStore.updateCardsAfterColumnRename(board.id, oldName, newName, updateCards);
+
+            // Update local board state
+            board = {
+                ...board,
+                columns: updatedColumns
+            };
+
+            // Update local cards state if needed
+            if (updateCards) {
+                cards = cards.map(card => 
+                    card.status === oldName 
+                        ? { ...card, status: newName }
+                        : card
+                );
+            }
+
+        } catch (error) {
+            errorMessage = error instanceof Error ? error.message : 'Failed to rename column';
+        }
+    }
 </script>
 
 <div class="board">
@@ -480,6 +526,7 @@
                         readOnly={!canEdit}
                         cardToOpen={cardToOpen}
                         onDeleteColumn={() => handleDeleteColumn(column.name)}
+                        onRenameColumn={handleRenameColumn}
                     />
                 {/each}
                 
