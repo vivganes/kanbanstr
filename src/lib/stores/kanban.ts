@@ -800,7 +800,13 @@ function createKanbanStore() {
         // Calculate order between two cards
         const prevCard = columnCards[targetIndex - 1];
         const nextCard = columnCards[targetIndex];
-        return prevCard.order + (nextCard.order - prevCard.order) / 2;
+        if(prevCard){
+            return prevCard.order + (nextCard.order - prevCard.order) / 2;
+        } 
+        console.log('prevCard is undefined');   
+        return 0;
+        
+
     }
 
     async function updateCard(boardId: string, card: Card, targetIndex?: number) {
