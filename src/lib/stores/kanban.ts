@@ -327,7 +327,12 @@ function createKanbanStore() {
             const boardCards: Card[] = [];
 
             //dedupe card events which have the same d tag and keep only the latest using created_at timestamp
-            const dedupedEvents = dedupeEventsBasedOnDTag(events);
+            const boardMaintainers = boardEvent.tags.filter(t => t[0] === 'p').map(t => t[1]);
+            
+            // filter out events created by non maintainers
+            const eventsByMaintainers = Array.from(events).filter(event => (boardMaintainers.includes(event.pubkey)|| boardEvent.pubkey === event.pubkey));
+
+            const dedupedEvents = dedupeEventsBasedOnDTag(new Set(eventsByMaintainers));
 
             for (const event of dedupedEvents) {
                 try {
