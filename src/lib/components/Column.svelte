@@ -324,6 +324,7 @@
             {#each sortedAndFilteredCards as card (card.id)}
                 <div
                     class="card-wrapper"
+                    class:drop-target={isDragOver && dragOverIndex === card.order}
                     on:dragover|preventDefault|stopPropagation={(e) => handleDragOver(e, card.order)}
                     on:drop|preventDefault|stopPropagation={handleDrop}
                 >
@@ -341,6 +342,7 @@
         {/if}
         <div 
             class="card-wrapper empty"
+            class:drop-target={isDragOver && dragOverIndex === cards.length}
             on:dragover|preventDefault|stopPropagation={(e) => handleDragOver(e, cards.length)}
             on:drop|preventDefault|stopPropagation={handleDrop}
         />
@@ -433,6 +435,18 @@
 
     .card-wrapper {
         padding: 4px 0;
+        position: relative;
+    }
+
+    .card-wrapper.drop-target::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        border-top: 2px dashed #0052cc;
+        pointer-events: none;
     }
 
     .card-wrapper.empty {
@@ -484,6 +498,10 @@
     @media (prefers-color-scheme: dark) {
         .add-card-btn:disabled {
             opacity: 0.5;
+        }
+
+        .card-wrapper.drop-target::before {
+            border-top-color: #66b2ff;
         }
     }
 
