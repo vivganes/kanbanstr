@@ -39,6 +39,7 @@
     let showFilters = false;
     let filteredCards = cards;
     let isFilterActive = false;
+    let showBinnedCards = false;
     
     let boardFilters = {
         states: [],
@@ -106,6 +107,10 @@
             boardFilters.states.length > 0 || 
             boardFilters.assignees.length > 0 || 
             boardFilters.tags.length > 0);
+        
+        if (!showBinnedCards) {
+            filteredCards = filteredCards.filter(card => !card.binned);
+        }
         
         if (isFilterActive) {
             filteredCards = cards.filter(card => {
@@ -312,6 +317,8 @@
             showReorderColumns = true;
         } else if (action === 'addColumn') {
             showAddColumn = true;
+        } else if (action === 'toggle-binned-cards') {
+            showBinnedCards = !showBinnedCards;    
         }
     }
 
@@ -399,6 +406,7 @@
                 </button>
                 <BoardSettings 
                     {canEdit}
+                    {showBinnedCards}
                     on:action={handleSettingsAction}
                 />
             </div>

@@ -46,6 +46,8 @@ export interface Card {
     trackingKind?: number;
     trackingRef?: { boardATag?: string, cardDTag?: string, eventId?:string };
     content?: string;
+    binned?: boolean;
+    zapAmount?: number;
 }
 
 export interface CardWithBoardTitle extends Card{
@@ -532,6 +534,8 @@ function createKanbanStore() {
         const iTags = eventToLoad.tags
             .filter(t => t[0] === 'i');
 
+        const binnedTag = eventToLoad.tags.find(t => t[0] === 'binned');
+
         const newCard = {
             id: event.id,
             naddr:naddr,
@@ -548,7 +552,8 @@ function createKanbanStore() {
             tTags,
             trackingRef: trackingRef,
             trackingKind: trackingKind,
-            iTags
+            iTags,
+            binned: binnedTag ? true : false
         }
         boardCards.push(newCard);
     }
@@ -811,28 +816,31 @@ function createKanbanStore() {
 
     async function updateCard(boardId: string, card: Card, targetIndex?: number) {
         try {
-
-            // Create new card event
-            const newCardEvent = new NDKEvent(ndk);
-            newCardEvent.kind = 30302 as NDKKind;
-
-            // If targetIndex is provided, calculate new order
             let newOrder = card.order;
             if (targetIndex !== undefined) {
                 const currentCards = get(kanbanStore).cards.get(boardId) || [];
                 newOrder = calculateNewOrder(currentCards, card.id, card.status, targetIndex);
             }
 
+            const newCardEvent = new NDKEvent(ndk);
+            newCardEvent.kind = 30302 as NDKKind;
+
             // Add tags according to new spec
             newCardEvent.tags = [
-                ['d', card.dTag], // Keep the same d tag for updates
+                ['d', card.dTag],
                 ['title', card.title],
                 ['description', card.description],
                 ['alt', `A card titled ${card.title}`],
-                ['rank', newOrder.toString()],              
+                ['rank', newOrder.toString()],
             ];
-            if(card.status){
+
+            if(card.status) {
                 newCardEvent.tags.push(['s', card.status]);
+            }
+
+            // Add binned tag if card is binned
+            if (card.binned) {
+                newCardEvent.tags.push(['binned']);
             }
 
             // Add attachment tags
@@ -878,9 +886,11 @@ function createKanbanStore() {
             // Update local store
             update(state => {
                 const newCards = new Map(state.cards);
-                const cards = newCards.get(boardId) || [];
-                const updatedCards = cards.map(c => 
-                    c.dTag === card.dTag ? {
+                const boardCards = newCards.get(boardId) || [];
+                const cardIndex = boardCards.findIndex(c => c.id === card.id);
+                
+                if (cardIndex !== -1) {
+                    boardCards[cardIndex] = {
                         ...card,
                         naddr: newCardEvent.encode(),
                         order: newOrder,
@@ -889,9 +899,10 @@ function createKanbanStore() {
                         pubkey: newCardEvent.pubkey,
                         tTags: card.tTags, 
                         iTags                     
-                    } : c
-                );
-                newCards.set(boardId, updatedCards);
+                    };
+                }
+                
+                newCards.set(boardId, boardCards);
                 return {
                     ...state,
                     cards: newCards
@@ -1318,6 +1329,29 @@ function createKanbanStore() {
         });
     }
 
+    async function toggleCardBinned(boardId: string, card: Card) {
+        try {
+            await updateCard(boardId, {
+                ...card,
+                binned: !card.binned
+            });
+        } catch (error) {
+            console.error('Failed to toggle card bin status:', error);
+            throw error;
+        }
+    }
+
+    async function toggleShowBinnedCards(boardId: string) {
+        update(state => {
+            const boards = state.boards.map(board => 
+                board.id === boardId 
+                    ? { ...board, showBinnedCards: !board.showBinnedCards }
+                    : board
+            );
+            return { ...state, boards };
+        });
+    }
+
     return {
         subscribe,
         init,
@@ -1341,7 +1375,9 @@ function createKanbanStore() {
         getIncomingLinkedCards,
         updateStateWithIncomingLinkToACard,
         updateStateWithDeletedOutgoingLinkFromACard,
-        updateCardsAfterColumnRename
+        updateCardsAfterColumnRename,
+        toggleCardBinned,
+        toggleShowBinnedCards
     };
 }
 

@@ -2,6 +2,7 @@
     import { createEventDispatcher } from 'svelte';
 
     export let canEdit: boolean;
+    export let showBinnedCards: boolean;
 
     const dispatch = createEventDispatcher();
     let showDropdown = false;
@@ -10,6 +11,7 @@
         dispatch('action', action);
         showDropdown = false;
     }
+
 </script>
 
 <div class="settings-container">
@@ -24,22 +26,31 @@
 
     {#if showDropdown}
         <div class="settings-dropdown" on:click|stopPropagation>
-                <button 
-                    class="dropdown-item"
-                    on:click={() => handleAction('reorderColumns')}
-                    disabled={!canEdit}
-                    title={!canEdit ? "Only the board owner can reorder columns" : ""}
-                >
-                    ⋮⋮ Reorder Columns
-                </button>
-                <button 
-                    class="dropdown-item"
-                    disabled={!canEdit}
-                    on:click={() => handleAction('addColumn')}
-                    title={!canEdit ? "Only the board owner can add columns" : ""}
-                >
-                    + Add Column
-                </button>
+            <button 
+                class="dropdown-item"
+                on:click={() => handleAction('reorderColumns')}
+                disabled={!canEdit}
+                title={!canEdit ? "Only the board owner can reorder columns" : ""}
+            >
+                ⋮⋮ Reorder Columns
+            </button>
+            <button 
+                class="dropdown-item"
+                disabled={!canEdit}
+                on:click={() => handleAction('addColumn')}
+                title={!canEdit ? "Only the board owner can add columns" : ""}
+            >
+                + Add Column
+            </button>
+            <button 
+                class="dropdown-item"
+                on:click={() => handleAction('toggle-binned-cards')}
+            >
+                <span class="material-icons">
+                    {showBinnedCards ? 'visibility_off' : 'visibility'}
+                </span>
+                {showBinnedCards ? 'Hide binned cards' : 'Show binned cards'}
+            </button>
         </div>
     {/if}
 </div>
@@ -70,5 +81,15 @@
 
     :global(.material-icons) {
         font-size: 20px;
+    }
+
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .dropdown-item .material-icons {
+        font-size: 18px;
     }
 </style> 

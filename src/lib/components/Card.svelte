@@ -44,7 +44,8 @@
         { label: 'Track this card in another board', icon: 'track_changes', action: 'track-card' },
         { label: 'Copy permalink', icon: 'link', action: 'copy-permalink' },
         {label: 'Copy linking string', icon: 'add_link', action: 'copy-linking-string'},
-        { label: 'Copy event id', icon: 'location_on', action: 'copy-event-id' }
+        { label: 'Copy event id', icon: 'location_on', action: 'copy-event-id' },
+        { label: card.binned ? 'Restore from bin' : 'Move to bin', icon: 'delete', action: 'toggle-bin' },
     ];
 
     let tTags = [...(card.tTags || [] )]; 
@@ -283,7 +284,9 @@
 
     function handleMenuSelect(event) {
         const action = event.detail;
-        if (action === 'clone-as-new-card') {
+        if (action === 'toggle-bin') {
+            handleToggleBin(event);
+        } else if (action === 'clone-as-new-card') {
             cloneAsNewCard(event);
         }
         else if (action === 'track-card') {
@@ -296,6 +299,23 @@
             copyNaddr(event);
         } else if (action === 'copy-linking-string') {
             copyLinkString(event);
+        }
+    }
+
+    async function handleToggleBin(event: MouseEvent) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        try {
+            await kanbanStore.toggleCardBinned(boardId, card);
+            toastStore.addToast(card.binned ? 'Card restored from bin' : 'Card moved to bin');
+            
+            setTimeout(() => {
+                closeMenu();
+            }, 500);
+        } catch (error) {
+            toastStore.addToast('Failed to update card', 'error');
+            throw error;
         }
     }
 
@@ -312,10 +332,12 @@
 
 <div 
     class="card" 
+    class:binned={card.binned}
     draggable={!readOnly && !(card.trackingRef !== undefined)}
     on:click={openDetails}
     on:dragstart={handleDragStart}
     on:contextmenu={(e) => openMenu(e, card.id)}
+    title={card.binned? 'This card is in the bin': ''}
 >
     <div class="card-header">
         <h4 on:click={openDetails}>{card.title}</h4>
@@ -454,6 +476,7 @@
         cursor: pointer;
         user-select: none;
         position: relative;
+        border: 1px solid transparent;
     }
 
     .card:hover {
@@ -720,6 +743,10 @@
         background: linear-gradient(90deg, #cc00b1, #5638ff);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+    }
+
+    .card.binned {
+        border-color: #ff4444;
     }
 
 </style> 
