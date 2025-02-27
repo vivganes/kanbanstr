@@ -8,7 +8,9 @@ import NDK, {
     type NDKFilter,
     NDKEvent,
     type NDKZapSplit,
-    type NDKPaymentConfirmation
+    type NDKPaymentConfirmation,
+    type NDKZapDetails,
+    type LnPaymentInfo
 } from '@nostr-dev-kit/ndk';
 import { writable, type Writable } from 'svelte/store';
 import { type Card } from '../stores/kanban';
@@ -25,6 +27,7 @@ interface NDKState {
     nwcString: string | null;
     zapMethod: 'webln' | 'nwc' | undefined;
     zappingNow: boolean;
+    manualZapInvoicesPending: string[] 
 }
 
 interface StoredLoginData {
@@ -62,7 +65,8 @@ class NDKInstance {
         isLoggingInNow: false,        
         nwcString: null,
         zapMethod: undefined,
-        zappingNow: false
+        zappingNow: false,
+        manualZapInvoicesPending: []
     });
 
     private constructor() {
@@ -205,13 +209,27 @@ class NDKInstance {
                 this.walletNdk =  new NDK({
                     explicitRelayUrls: [this.getRelayFromNwcString(this.nwcString!)!]
                 })             
-                const wallet = new NDKNWCWallet(this.walletNdk);
-                await wallet.initWithPairingCode(this.nwcString!);
+                const wallet = new NDKNWCWallet(this.walletNdk,{
+                    timeout:5000,
+                    pairingCode: this.nwcString!
+                });
                 this._ndk.wallet = wallet;
+                wallet.on("timeout", (method: string) => console.log('Unable to complete the operation in time', { method }))
             } else if (this.zapMethod === 'webln'){
                 const wallet = new NDKWebLNWallet();
                 this._ndk.wallet = wallet;
-            }            
+            } else {
+                // no wallet. So, manual payment
+                this._ndk.wallet = undefined;
+                const lnPay = async (payment: NDKZapDetails<LnPaymentInfo>) => {
+                    this.state.update(state => ({
+                        ...state,
+                        manualZapInvoicesPending: [...state.manualZapInvoicesPending, payment.pr]
+                    }));
+                    return undefined;
+                };
+                this._ndk.wallet = {lnPay};
+            }          
         }  
         
         return {zapMethod: this.zapMethod, nwcString: this.nwcString};
@@ -277,7 +295,8 @@ class NDKInstance {
                 isLoggingInNow: false,
                 zapMethod: this.zapMethod,
                 nwcString: this.nwcString,
-                zappingNow: false
+                zappingNow: false,
+                manualZapInvoicesPending: []
             });
 
             // Store login data
@@ -470,6 +489,29 @@ class NDKInstance {
         return currentState;
     }
 
+    async zapProfile(pubkey: string, amount: number, comment?: string, zapCompleteCallback?: ()=>void): Promise<boolean> {
+        try {
+
+            
+            if (!this._ndk) throw new Error('NDK not initialized');
+            if (!this._ndk.signer) throw new Error('No signer available');
+            if(!this._ndk.wallet){
+                await this.initializeWalletForZapping();
+            }
+            this.state.update(state => ({
+                ...state,
+                zappingNow: true
+            }));
+
+            const ndkUserToBeZapped = ndkInstance.ndk!.getUser({pubkey: pubkey}); 
+            await this.zapUsingNDKZapper(ndkUserToBeZapped, amount, comment, zapCompleteCallback);
+            return true;
+        } catch (error) {
+            console.error('Failed to zap profile:', error);
+            throw error;
+        }
+    }
+
     async zapCard(card: Card, amount: number = 1000, comment?: string, zapCompleteCallback?: ()=>void): Promise<boolean> {
         try {
 
@@ -483,12 +525,12 @@ class NDKInstance {
                 zappingNow: true
             }));
 
-            // get card event from NDK
-            const cardEvent = await this._ndk.fetchEvent({
+            // get profile event from NDK
+            const eventToBeZapped = await this._ndk.fetchEvent({
                 ids: [card.id],
             });
            
-            await this.zapUsingNDKZapper(cardEvent, amount, comment, zapCompleteCallback);
+            await this.zapUsingNDKZapper(eventToBeZapped, amount, comment, zapCompleteCallback);
             
             return true;
         } catch (error) {
@@ -497,8 +539,11 @@ class NDKInstance {
         }
     }
 
-    private async zapUsingNDKZapper(cardEvent: NDKEvent | null, amount: number, comment: string | undefined, zapCompleteCallback: (() => void) | undefined) {
-        const zapper = new NDKZapper(cardEvent!, amount * 1000);
+    private async zapUsingNDKZapper(zapTargetObject: NDKEvent | NDKUser | null, amount: number, comment: string | undefined, zapCompleteCallback: (() => void) | undefined) {
+        const zapper = new NDKZapper(zapTargetObject!, amount * 1000,'msat',{
+            ndk: this._ndk!,
+            nutzapAsFallback: false
+        });
 
         if (comment) {
             zapper.comment = comment;

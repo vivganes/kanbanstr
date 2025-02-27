@@ -2,6 +2,7 @@ import { writable, get } from 'svelte/store';
 import NDK, { NDKEvent, NDKUser, type NDKFilter, type NDKKind, type NDKTag } from '@nostr-dev-kit/ndk';
 import KanbanMigrationUtil from '../utils/MigrationUtilV1';
 import { ndkInstance } from '../ndk';
+import { donationStore } from './donation';
 
 export interface KanbanBoard {
     id: string;
@@ -775,6 +776,9 @@ function createKanbanStore() {
                     cards: newCards
                 };
             });
+
+            // After successful creation
+            donationStore.showDonationRequest();
         } catch (error) {
             console.error('Failed to create card:', error);
             throw error;
@@ -911,6 +915,8 @@ function createKanbanStore() {
                 
             });
 
+            // After successful update
+            donationStore.showDonationRequest();
         } catch (error) {
             console.error('Failed to update card:', error);
             throw error;
@@ -1164,6 +1170,9 @@ function createKanbanStore() {
                 ['a', targetBoardATag]
             ];
             await newCardEvent.publish();            
+
+            // After successful tracking
+            donationStore.showDonationRequest();
         } catch (error) {
             console.error('Failed to clone card:', error);
             throw error;
