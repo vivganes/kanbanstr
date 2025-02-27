@@ -10,11 +10,12 @@
   import ConsentModal from './lib/components/ConsentModal.svelte';
   import ToastContainer from './lib/components/ToastContainer.svelte';
   import DonationPopup from './lib/components/DonationPopup.svelte';
+  import ManualZapPopup from './lib/components/ManualZapPopup.svelte';
 
   let user: NDKUser | null = null;
   let loginMethod: string | null = null;
   let isReady = false;
-  let manualZapInvoicesPending = [];
+  let manualZapInvoicesPending: string[] = [];
   let zapMethod: "webln" | "nwc" | undefined = undefined;
   let zappingNow = false;
 
@@ -53,6 +54,12 @@
   {/if}
   <ToastContainer />
   <DonationPopup />
+  {#if zapMethod === undefined && manualZapInvoicesPending?.length > 0 && zappingNow}
+    <ManualZapPopup 
+      invoices={manualZapInvoicesPending}
+      onClose={() => ndkInstance.store.update(state => ({ ...state, zappingNow: false, manualZapInvoicesPending: [] }))}
+    />
+  {/if}
 </main>
 
 <style>

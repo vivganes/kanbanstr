@@ -93,14 +93,24 @@
         <div class="zap-methods">
             <div>
                 <label class="method-option">
+                    
+                    <div class="method-content">
+                        <span class="method-title">Manual</span>
+                        <span class="method-description">
+                            Scan QR Code or copy Lightning invoice to zap manually
+                        </span>
+                    </div>
                     <input 
                         type="radio" 
-                        name="zapMethod" 
-                        value="webln"
+                        name="zapMethod"                     
                         bind:group={zapMethod}
-                        on:change={() => handleZapMethodChange('webln')}
-                        disabled={!isWebLnAvailable}
+                        on:change={() => handleZapMethodChange(undefined)}
                     >
+                </label>
+            </div>
+            <div>
+                <label class="method-option">
+                    
                     <div class="method-content">
                         <span class="method-title">WebLN</span>
                         <span class="method-description">
@@ -109,10 +119,22 @@
                                 'WebLN not available. Install a compatible browser extension like Alby'}
                         </span>
                     </div>
+                    <input 
+                        type="radio" 
+                        name="zapMethod" 
+                        value="webln"
+                        bind:group={zapMethod}
+                        on:change={() => handleZapMethodChange('webln')}
+                        disabled={!isWebLnAvailable}
+                    >
                 </label>
             </div>
             <div>
-                <label class="method-option">
+                <label class="method-option">                   
+                    <div class="method-content">
+                        <span class="method-title">Nostr Wallet Connect</span>
+                        <span class="method-description">Use Nostr Wallet Connect string to connect to your Lightning wallet</span>
+                    </div>
                     <input 
                         type="radio" 
                         name="zapMethod" 
@@ -120,12 +142,9 @@
                         bind:group={zapMethod}
                         on:change={() => handleZapMethodChange('nwc')}
                     >
-                    <div class="method-content">
-                        <span class="method-title">Nostr Wallet Connect</span>
-                        <span class="method-description">Use Nostr Wallet Connect string to connect to your Lightning wallet</span>
-                    </div>
                 </label>
             </div>
+            
         </div>
 
         {#if zapMethod === 'nwc'}

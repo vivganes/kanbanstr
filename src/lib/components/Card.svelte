@@ -76,7 +76,7 @@
                     zapImpossibleReason = "WebLN is not enabled. So, you cannot zap!"
                 }
             } else {
-                zapImpossibleReason = "Zap method not configured. Configure it in settings to zap!"
+                canUserZap = true;
             }
         });
 

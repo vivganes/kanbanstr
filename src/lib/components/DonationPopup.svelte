@@ -1,12 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { fade, fly } from 'svelte/transition';
   import { donationStore } from '../stores/donation';
   import UserAvatar from './UserAvatar.svelte';
   import contributors from '../data/contributors.json';
   import ZapModal from './ZapModal.svelte';
   import { ndkInstance } from '../ndk';
-    import type { Card } from '../stores/kanban';
 
   let showZapModal = false;
 
@@ -36,8 +34,8 @@
   >
     <div class="popup">
       <div class="content">
-        <h3>Support the Project</h3>
-        <p>If you find this project useful, consider supporting the contributors with a zap ⚡</p>
+        <h3>Zap the Devs!</h3>
+        <p>Your donation helps us make a difference. Every sat counts! #Value4Value</p>
         
         <div class="contributors">
           {#each contributors.contributors as contributor}
@@ -55,7 +53,11 @@
         </button>
         <button 
           class="zap"
-          on:click={() => showZapModal = true}
+          on:click={() => {
+            showZapModal = true;
+            const timestamp = Date.now();
+            localStorage.setItem('lastDonationIgnoredOrDone', timestamp.toString());
+          }}
         >
           Zap ⚡
         </button>

@@ -14,7 +14,7 @@ import NDK, {
 } from '@nostr-dev-kit/ndk';
 import { writable, type Writable } from 'svelte/store';
 import { type Card } from '../stores/kanban';
-import { NDKNWCWallet, NDKWebLNWallet} from '@nostr-dev-kit/ndk-wallet';
+import { NDKNWCWallet, NDKWebLNWallet, update} from '@nostr-dev-kit/ndk-wallet';
 
 
 export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
@@ -187,7 +187,8 @@ class NDKInstance {
 
     get store() {
         return {
-            subscribe: this.state.subscribe
+            subscribe: this.state.subscribe,
+            update: this.state.update
         };
     }
 
@@ -222,6 +223,7 @@ class NDKInstance {
                 // no wallet. So, manual payment
                 this._ndk.wallet = undefined;
                 const lnPay = async (payment: NDKZapDetails<LnPaymentInfo>) => {
+                    console.log('Manual payment:', payment.pr);
                     this.state.update(state => ({
                         ...state,
                         manualZapInvoicesPending: [...state.manualZapInvoicesPending, payment.pr]
@@ -326,7 +328,8 @@ class NDKInstance {
                 isLoggingInNow: false,                
                 zapMethod: this.zapMethod,
                 nwcString: this.nwcString,
-                zappingNow: false
+                zappingNow: false,
+                manualZapInvoicesPending: []
             });
 
             // Store login data
@@ -387,7 +390,8 @@ class NDKInstance {
                 isLoggingInNow: false,                
                 zapMethod: this.zapMethod,
                 nwcString: this.nwcString,
-                zappingNow: false
+                zappingNow: false,
+                manualZapInvoicesPending: []
             });
 
             // Store login data
@@ -421,7 +425,8 @@ class NDKInstance {
                 isLoggingInNow: false,
                 zapMethod: this.zapMethod,
                 nwcString: this.nwcString,
-                zappingNow: false
+                zappingNow: false,
+                manualZapInvoicesPending:[]
             });
 
             // Store login data
@@ -443,7 +448,8 @@ class NDKInstance {
             isLoggingInNow: true,
             nwcString: null,
             zapMethod: undefined,
-            zappingNow: false
+            zappingNow: false,
+            manualZapInvoicesPending: []
         });
         if(this.walletNdk){
             this.walletNdk = null;
@@ -556,10 +562,13 @@ class NDKInstance {
         );
         zapper.on('complete', (res) => {
             console.log('complete', res);
-            this.state.update(state => ({
-                ...state,
-                zappingNow: false
-            }));
+            if(this.zapMethod){
+                this.state.update(state => ({
+                    ...state,
+                    zappingNow: false
+                }));
+            };
+            
             if (zapCompleteCallback) {
                 zapCompleteCallback();
             }
@@ -640,5 +649,6 @@ export function formatAmount(amount: number): string {
     }
     return amount.toString();
 }
+
 
 export const ndkInstance = NDKInstance.getInstance();
