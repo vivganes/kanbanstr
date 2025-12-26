@@ -61,6 +61,24 @@
 
     onMount(async () => {
         board = getContext('board');
+
+        editor = new Editor({
+            element: editorElement,
+            editable: canEditCard,
+            extensions: [
+                StarterKit,
+                Markdown.configure({
+                    html: false,
+                    transformPastedText: true,
+                    transformCopiedText: true
+                })
+            ],
+            content: description,
+            onUpdate: ({ editor }) => {
+                description = editor.storage.markdown.getMarkdown();
+            }            
+        });
+        
         fillLinksForCard();
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
@@ -87,22 +105,7 @@
             loadingBoards = false;
         }
 
-        editor = new Editor({
-            element: editorElement,
-            editable: canEditCard,
-            extensions: [
-                StarterKit,
-                Markdown.configure({
-                    html: false,
-                    transformPastedText: true,
-                    transformCopiedText: true
-                })
-            ],
-            content: description,
-            onUpdate: ({ editor }) => {
-                description = editor.storage.markdown.getMarkdown();
-            }            
-        });
+        
 
         if (board) { 
             await loadPossibleAssignees();
