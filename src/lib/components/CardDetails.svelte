@@ -3,13 +3,13 @@
     import { kanbanStore } from '../stores/kanban';
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
-    import type { NDKKind } from '@nostr-dev-kit/ndk';
     import { Markdown } from 'tiptap-markdown';
     import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
     import type { KanbanBoard } from '../stores/kanban';
     import { toastStore } from '../stores/toast';
+    import Link from '@tiptap/extension-link'
 
     export let card: Card;
     export let boardPubkey: string;
@@ -67,10 +67,16 @@
             editable: canEditCard,
             extensions: [
                 StarterKit,
+                Link.configure({
+                    openOnClick: true,
+                    linkOnPaste: true,
+                    autolink: true,
+                    protocols: ['ftp', 'ftps', 'http', 'https', 'mailto', 'tel'],
+
+
+                }),
                 Markdown.configure({
-                    html: false,
-                    transformPastedText: true,
-                    transformCopiedText: true
+                    html: false,                   
                 })
             ],
             content: description,

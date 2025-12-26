@@ -25,6 +25,7 @@
     "@tiptap/pm": "^2.11.0",
     "@tiptap/starter-kit": "^2.11.0",
     "@types/qrcode": "^1.5.5",
+    "@tiptap/extension-link": "^2.11.0",
     "alby-js-sdk": "^2.3.0",
     "marked": "^15.0.4",
     "qrcode": "^1.5.4",
