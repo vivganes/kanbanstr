@@ -185,6 +185,97 @@ class NDKInstance {
         return this._ndk;
     }
 
+    /**
+     * Stream events matching a filter and call handlers as they arrive.
+     * Tries to use the underlying NDK subscription API if present. If not,
+     * falls back to polling via `fetchEvents`.
+     *
+     * Returns an object with a `cancel()` method to stop streaming.
+     */
+    public streamEvents(filter: NDKFilter, onEvent: (ev: NDKEvent) => void, onEose?: () => void, options?: { timeout?: number; pollInterval?: number; limit?: number }) {
+        if (!this._ndk) throw new Error('NDK not initialized');
+
+        const ndkAny = this._ndk as any;
+
+        // If NDK exposes a subscribe-style API, use it (non-breaking, defensive)
+        if (typeof ndkAny.subscribe === 'function') {
+            try {
+                const sub = ndkAny.subscribe(filter);
+
+                // Preferred: subscription emits 'event' and 'eose'
+                if (typeof sub.on === 'function') {
+                    sub.on('event', (ev: NDKEvent) => onEvent(ev));
+                    sub.on('eose', () => { if (onEose) onEose(); });
+                }
+
+                // Provide cancel that tries common unsubscribe methods
+                const cancel = () => {
+                    try { if (typeof sub.unsub === 'function') sub.unsub(); } catch (e) {}
+                    try { if (typeof sub.unsubscribe === 'function') sub.unsubscribe(); } catch (e) {}
+                };
+
+                return { cancel };
+            } catch (err) {
+                console.warn('ndk.subscribe failed, falling back to polling:', err);
+            }
+        }
+
+        // Fallback: polling with fetchEvents
+        let cancelled = false;
+        const limit = options?.limit ?? 100;
+        const pollInterval = options?.pollInterval ?? 1000; // ms
+
+        let lastCreatedAt = 0;
+
+        const start = Date.now();
+
+        const runner = async () => {
+            try {
+                while (!cancelled) {
+                    // Build a copy of filter and add since if we have a timestamp
+                    const f: NDKFilter = { ...filter, limit };
+                    if (lastCreatedAt > 0) {
+                        // some relays expect 'since' as timestamp
+                        (f as any).since = lastCreatedAt;
+                    }
+
+                    const events = await this._ndk!.fetchEvents(f);
+
+                    for (const ev of events) {
+                        try {
+                            onEvent(ev);
+                        } catch (e) {
+                            console.error('streamEvents onEvent handler error:', e);
+                        }
+
+                        // track the latest created_at to avoid refetching
+                        if ((ev as any).created_at) {
+                            lastCreatedAt = Math.max(lastCreatedAt, (ev as any).created_at);
+                        }
+                    }
+
+                    // If options.timeout is set and exceeded, call onEose and stop
+                    if (options?.timeout && Date.now() - start > options.timeout) {
+                        if (onEose) onEose();
+                        break;
+                    }
+
+                    // If no events returned, wait a bit
+                    await new Promise(res => setTimeout(res, pollInterval));
+                }
+            } catch (error) {
+                console.error('streamEvents polling error:', error);
+                if (onEose) onEose();
+            }
+        };
+
+        void runner();
+
+        return {
+            cancel: () => { cancelled = true; }
+        };
+    }
+
     get store() {
         return {
             subscribe: this.state.subscribe,

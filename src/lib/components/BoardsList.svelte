@@ -16,6 +16,7 @@
     let myBoards: KanbanBoard[] = [];
     let maintainingBoards: KanbanBoard[] = [];
     let loading = false;
+    let streaming = false;
     let currentUser: NDKUser | null = null;
     let currentLoginMethod: LoginMethod | null = null;
     let errorMessage: string | null = null;
@@ -83,6 +84,7 @@
                 myBoards = state.myBoards;
                 maintainingBoards = state.maintainingBoards;
                 loading = state.loading;
+                streaming = state.streaming;
                 errorMessage = state.error;
             });
 
@@ -328,6 +330,9 @@
             {/if}
         </div>
     {:else}
+        {#if streaming && filteredBoards.length > 0}
+            <div class="streaming-note">Loading more boards… <span class="small-spinner"></span></div>
+        {/if}
         <div class="boards-grid">
             {#each filteredBoards as board (board.id)}
                 <div 
@@ -394,6 +399,29 @@
         grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
         gap: 1.5rem;
         padding-top: 0.5rem;
+    }
+
+    .streaming-note {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .small-spinner {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #ccc;
+        border-top-color: #0052cc;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
     }
 
     button {

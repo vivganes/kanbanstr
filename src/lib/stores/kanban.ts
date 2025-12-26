@@ -76,6 +76,7 @@ interface KanbanState {
     maintainingBoards: KanbanBoard[];
     cards: Map<string, Card[]>;
     loading: boolean;
+        streaming: boolean;
     currentUser: NDKUser | null;
     error: string | null;
 }
@@ -87,6 +88,7 @@ function createKanbanStore() {
         maintainingBoards: [],
         cards: new Map(),
         loading: false,
+        streaming: false,
         currentUser: null,
         error: null,
     });
@@ -105,11 +107,17 @@ function createKanbanStore() {
     }
 
     async function loadBoards(boardListType: BoardListType = BoardListType.All) {
-        update(state => ({ ...state, loading: true, error: null }));
-        
+        update(state => ({ ...state, loading: true, streaming: true, error: null }));
+
+        // Cancel any previous board streaming
+        if ((loadBoards as any)._cancel) {
+            try { (loadBoards as any)._cancel(); } catch (e) {}
+            (loadBoards as any)._cancel = undefined;
+        }
+
         try {
             let filter: NDKFilter = {
-                kinds: [30301 as NDKKind],                
+                kinds: [30301 as NDKKind],
                 limit: 500,
             };
             if(boardListType === BoardListType.MyBoards){
@@ -124,19 +132,18 @@ function createKanbanStore() {
                 }
             }
 
-            const events = await ndk.fetchEvents(filter);
-            const boards: KanbanBoard[] = [];
+            // We'll stream events and update the store incrementally as they arrive
+            const boardsMap: Map<string, KanbanBoard> = new Map();
 
-            for (const event of events) {
+            const parseAndUpsert = (event: NDKEvent) => {
                 try {
                     const hasATags = event.tags.some(t => t[0] === 'a');
-                    const contentHasColumns = event.content && JSON.parse(event.content).columns;                    
-                   
+                    const contentHasColumns = event.content && (() => { try { return JSON.parse(event.content).columns; } catch { return false; } })();
 
                     let titleTag = event.tags.find(t => t[0] === 'title');
                     let descTag = event.tags.find(t => t[0] === 'description');
                     let dTag = event.tags.find(t => t[0] === 'd');
-                    
+
                     // Get columns from col tags
                     let columns = event.tags
                         .filter(t => t[0] === 'col')
@@ -145,15 +152,15 @@ function createKanbanStore() {
                             name: t[2],
                             order: parseInt(t[3])
                         }));
-                        
+
                     // Check if this is a no-zap board (no maintainer zap tags)
                     let hasNoZapTag = event.tags.some(t => t[0] === 'nozap');
 
-                    if(hasATags || contentHasColumns){
+                    if (hasATags || contentHasColumns) {
                         //legacy board
                         const eventContent = JSON.parse(event.content);
-                        columns = eventContent.columns;       
-                        descTag = ['description',eventContent.description];
+                        columns = eventContent.columns;
+                        descTag = ['description', eventContent.description];
                     }
 
                     // Get maintainers from p tags
@@ -161,8 +168,10 @@ function createKanbanStore() {
                         .filter(t => t[0] === 'p')
                         .map(t => t[1]);
 
-                    boards.push({
-                        id: dTag ? dTag[1] : event.id,
+                    const id = dTag ? dTag[1] : event.id;
+
+                    const board: KanbanBoard = {
+                        id,
                         pubkey: event.pubkey,
                         title: titleTag ? titleTag[1] : 'Untitled Board',
                         description: descTag ? descTag[1] : '',
@@ -170,31 +179,38 @@ function createKanbanStore() {
                         isNoZapBoard: hasNoZapTag,
                         maintainers,
                         needsMigration: hasATags || contentHasColumns
-                    });
+                    };
+
+                    boardsMap.set(id, board);
+
+                    // update the appropriate store slice immediately
+                    const boardsArray = Array.from(boardsMap.values());
+                    if (boardListType === BoardListType.MyBoards) {
+                        update(state => ({ ...state, myBoards: boardsArray }));
+                    } else if (boardListType === BoardListType.MaintainingBoards) {
+                        update(state => ({ ...state, maintainingBoards: boardsArray }));
+                    } else {
+                        update(state => ({ ...state, boards: boardsArray }));
+                    }
                 } catch (error) {
                     console.error('Failed to parse board event:', error);
                 }
-            }
+            };
 
-            if(boardListType === BoardListType.MyBoards){
-                update(state => ({
-                    ...state,
-                    myBoards: boards,
-                    loading: false
-                }));
-            } else if(boardListType === BoardListType.MaintainingBoards){
-                update(state => ({
-                    ...state,
-                    maintainingBoards: boards,
-                    loading: false
-                }));
-            } else{
-                update(state => ({
-                    ...state,
-                    boards,
-                    loading: false
-                }));
-            }            
+            // Use ndkInstance streaming helper if available
+            const streamer = (ndkInstance as any).streamEvents(filter, (ev: NDKEvent) => {
+                // mark loading false on first arrival
+                update(state => state.loading ? ({ ...state, loading: false }) : state);
+                parseAndUpsert(ev);
+            }, () => {
+                // EOSE: ensure loading is false and streaming ended
+                update(state => ({ ...state, loading: false, streaming: false }));
+            }, { timeout: 15000, pollInterval: 1000, limit: 200 });
+
+            // keep cancel reference so subsequent calls can cancel this stream
+            if (streamer && typeof streamer.cancel === 'function') {
+                (loadBoards as any)._cancel = streamer.cancel;
+            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to load boards';
             update(state => ({
@@ -207,12 +223,19 @@ function createKanbanStore() {
     }
 
     async function clearStore(){
+        // Cancel any ongoing board stream
+        if ((loadBoards as any)._cancel) {
+            try { (loadBoards as any)._cancel(); } catch (e) {}
+            (loadBoards as any)._cancel = undefined;
+        }
+
         await update(state => ({
             boards: [],
             myBoards: [],
             maintainingBoards: [],
             cards: new Map(),
             loading: false,
+            streaming: false,
             currentUser: null,
             error: null,
         }));
