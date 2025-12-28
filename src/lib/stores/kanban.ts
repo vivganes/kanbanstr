@@ -108,6 +108,7 @@ function createKanbanStore() {
         update(state => ({ ...state, loading: true, error: null }));
         
         try {
+            const user = get(ndkInstance.store).user;
             let filter: NDKFilter = {
                 kinds: [30301 as NDKKind],                
                 limit: 500,
@@ -115,12 +116,12 @@ function createKanbanStore() {
             if(boardListType === BoardListType.MyBoards){
                 filter = {
                     ...filter,
-                    authors: [ndk.activeUser?.pubkey!],
+                    authors: [user?.pubkey!],
                 }
             } else if (boardListType === BoardListType.MaintainingBoards){
                 filter = {
                     ...filter,
-                    '#p': [ndk.activeUser?.pubkey!],
+                    '#p': [user?.pubkey!],
                 }
             }
 

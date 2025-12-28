@@ -1,6 +1,7 @@
 import NDK, { 
     NDKPrivateKeySigner, 
     NDKNip07Signer, 
+    NDKNip46Signer,
     NDKUser,
     NDKZapper,
     type NDKSigner,
@@ -17,7 +18,7 @@ import { type Card } from '../stores/kanban';
 import { NDKNWCWallet, NDKWebLNWallet, update} from '@nostr-dev-kit/ndk-wallet';
 
 
-export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
+export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'bunker' | 'readonly';
 
 interface NDKState {
     user: NDKUser | null;
@@ -34,6 +35,7 @@ interface StoredLoginData {
     loginMethod: LoginMethod;
     nsec?: string;
     npub?: string;
+    bunkerUri?: string;
 }
 
 interface StoredWalletData {    
@@ -103,6 +105,11 @@ class NDKInstance {
                     break;
                 case 'nip07':
                     await this.loginWithNip07();
+                    break;
+                case 'bunker':
+                    if (storedData.bunkerUri) {
+                        await this.loginWithBunker(storedData.bunkerUri, storedData.nsec);
+                    }
                     break;
                 case 'readonly':
                     await this.loginReadOnly();
@@ -402,6 +409,48 @@ class NDKInstance {
         } catch (error) {
             console.error('Failed to login with NIP-07:', error);
             throw error;
+        }
+    }
+
+    async loginWithBunker(bunkerUri: string, bunkerNsec: string | undefined): Promise<void> {
+        try {
+            console.log("Logging in with bunker:// URI");
+            this._ndk = new NDK({
+                explicitRelayUrls: DEFAULT_RELAYS
+            });
+            const signer = new NDKNip46Signer(this._ndk, bunkerUri, bunkerNsec);
+            this._ndk.signer = signer;
+            await signer.blockUntilReady();            
+            await this._ndk.connect();
+
+            const nsec = signer.localSigner.nsec;
+
+            this.getStoredZapWalletData();
+            
+            this.user = await signer.user();
+            console.log("Bunker user npub: "+ this.user.npub);
+            const user = this.user;
+            await user.fetchProfile();
+            this.state.set({
+                user,
+                loginMethod: 'bunker',
+                isReady: true,
+                isLoggingInNow: false,                
+                zapMethod: this.zapMethod,
+                nwcString: this.nwcString,
+                zappingNow: false,
+                manualZapInvoicesPending: []
+            });
+
+            // Store login data
+            this.storeLoginData({
+                loginMethod: 'bunker',
+                bunkerUri: bunkerUri,
+                nsec,
+                npub: user.npub
+            });
+        } catch (error) {
+            console.error('Failed to connect via bunker://', error)
         }
     }
 
