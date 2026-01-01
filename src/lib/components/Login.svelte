@@ -112,12 +112,6 @@
         </label>
     </div>
 
-    <div>
-        <p>
-            Don't have a <a href="https://nostr.com" target="_blank">nostr</a> account? <a href="https://primal.net/new" target="_blank">Click here</a> to get one.
-        </p>
-    </div>
-
     {#if selectedMethod === 'nsec'}
         <div class="input-group">
             <input
@@ -147,6 +141,12 @@
             >
         </div>
     {/if}
+
+    <div>
+        <p>
+            Don't have a <a href="https://nostr.com" target="_blank">nostr</a> account? <a href="https://primal.net/new" target="_blank">Click here</a> to get one.
+        </p>
+    </div>
     {/if}
 
     {#if error}

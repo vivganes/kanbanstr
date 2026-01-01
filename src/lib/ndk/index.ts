@@ -51,6 +51,9 @@ const DEFAULT_RELAYS = [
     'wss://relay.primal.net'
 ];
 
+// Store that indicates whether a bunker publish is in progress
+export const bunkerPublishing: Writable<boolean> = writable(false);
+
 class NDKInstance {
     private static instance?: NDKInstance;
     private _ndk: NDK | null = null;
@@ -80,6 +83,26 @@ class NDKInstance {
             NDKInstance.instance._ndk = null;
         }
         NDKInstance.instance = undefined;
+    }
+
+    public async publishEvent(event: NDKEvent, publishReplaceable?: boolean): Promise<void> {
+        // if bunker login, set bunkerPublishing to true
+        const currentState = this.getCurrentState();
+        if (currentState.loginMethod === 'bunker') {
+            bunkerPublishing.set(true);
+        }
+
+        try{
+            if(publishReplaceable) {
+               await event.publishReplaceable();
+            } else {
+                await event.publish();
+            }
+        } finally {
+            if (currentState.loginMethod === 'bunker') {
+                bunkerPublishing.set(false);
+            }
+        }
     }
 
     private async tryAutoLogin() {
@@ -412,15 +435,20 @@ class NDKInstance {
         }
     }
 
-    async loginWithBunker(bunkerUri: string, bunkerNsec: string | undefined): Promise<void> {
+    async loginWithBunker(bunkerUri: string, bunkerNsec?: string): Promise<void> {
         try {
             console.log("Logging in with bunker:// URI");
+            this.state.update(state => ({
+                ...state,
+                isLoggingInNow: true
+            }));
             this._ndk = new NDK({
                 explicitRelayUrls: DEFAULT_RELAYS
             });
             const signer = new NDKNip46Signer(this._ndk, bunkerUri, bunkerNsec);
             this._ndk.signer = signer;
-            await signer.blockUntilReady();            
+            await signer.blockUntilReady();  
+            console.log("Bunker signer is ready");          
             await this._ndk.connect();
 
             const nsec = signer.localSigner.nsec;
@@ -450,7 +478,12 @@ class NDKInstance {
                 npub: user.npub
             });
         } catch (error) {
-            console.error('Failed to connect via bunker://', error)
+            console.error('Failed to connect via bunker://', error);
+            this.state.update(state => ({
+                ...state,
+                isLoggingInNow: false,
+                }));
+            throw new Error('Failed to connect via bunker: ' + error );
         }
     }
 
@@ -526,7 +559,7 @@ class NDKInstance {
         return currentState.loginMethod === 'nsec' || currentState.loginMethod === 'nip07';
     }
 
-    private getCurrentState(): NDKState {
+    public getCurrentState(): NDKState {
         let currentState: NDKState = {
             user: null,
             loginMethod: null,
