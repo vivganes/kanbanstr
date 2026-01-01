@@ -5,6 +5,7 @@
     let selectedMethod: LoginMethod = 'readonly';
     let nsecInput = '';
     let npubInput = '';
+    let bunkerUriInput = '';
     let error = '';
     let loading = false;
 
@@ -41,7 +42,11 @@
                 case 'nip07':
                     await ndkInstance.loginWithNip07();
                     break;
-                    
+                
+                case 'bunker':
+                    await ndkInstance.loginWithBunker(bunkerUriInput);
+                    break;              
+                                
                 case 'readonly':
                     await ndkInstance.loginReadOnly();
                     break;
@@ -95,13 +100,16 @@
                 value="nip07"
             >
             Login with <a href="https://nostr.com/get-started#keeping-keys-safe" target="_blank">browser extension</a>
-        </label>        
-    </div>
-
-    <div>
-        <p>
-            Don't have a <a href="https://nostr.com" target="_blank">nostr</a> account? <a href="https://primal.net/new" target="_blank">Click here</a> to get one.
-        </p>
+        </label>
+        
+        <label>
+            <input 
+                type="radio" 
+                bind:group={selectedMethod} 
+                value="bunker"
+            >
+            Login with remote signer (Bunker)
+        </label>
     </div>
 
     {#if selectedMethod === 'nsec'}
@@ -123,6 +131,22 @@
             >
         </div>
     {/if}
+
+    {#if selectedMethod === 'bunker'}
+        <div class="input-group">
+            <input
+                type="text"
+                bind:value={bunkerUriInput}
+                placeholder="bunker:// ..."
+            >
+        </div>
+    {/if}
+
+    <div>
+        <p>
+            Don't have a <a href="https://nostr.com" target="_blank">nostr</a> account? <a href="https://primal.net/new" target="_blank">Click here</a> to get one.
+        </p>
+    </div>
     {/if}
 
     {#if error}

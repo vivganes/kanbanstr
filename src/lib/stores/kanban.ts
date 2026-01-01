@@ -108,6 +108,7 @@ function createKanbanStore() {
         update(state => ({ ...state, loading: true, error: null }));
         
         try {
+            const user = get(ndkInstance.store).user;
             let filter: NDKFilter = {
                 kinds: [30301 as NDKKind],                
                 limit: 500,
@@ -115,12 +116,12 @@ function createKanbanStore() {
             if(boardListType === BoardListType.MyBoards){
                 filter = {
                     ...filter,
-                    authors: [ndk.activeUser?.pubkey!],
+                    authors: [user?.pubkey!],
                 }
             } else if (boardListType === BoardListType.MaintainingBoards){
                 filter = {
                     ...filter,
-                    '#p': [ndk.activeUser?.pubkey!],
+                    '#p': [user?.pubkey!],
                 }
             }
 
@@ -689,7 +690,7 @@ function createKanbanStore() {
                 ...maintainers.map(maintainer => ['p', maintainer])
             ];
 
-            await event.publish();
+            await ndkInstance.publishEvent(event);
             console.log('Board created successfully');
             
             await Promise.all([loadBoards(), loadMyBoards()]);
@@ -745,7 +746,7 @@ function createKanbanStore() {
                 });
             }
 
-            await cardEvent.publish();
+            await ndkInstance.publishEvent(cardEvent);
             const boardId = aTagPointingToBoard.split(':')[2];
             const iTags = cardEvent.tags.filter(t => t[0] === 'i');
 
@@ -883,7 +884,7 @@ function createKanbanStore() {
                 });
             }
 
-            await newCardEvent.publishReplaceable();
+            await ndkInstance.publishEvent(newCardEvent, true);
             // get iTags
             const iTags = newCardEvent.tags.filter(t => t[0] === 'i');
 
@@ -1077,7 +1078,7 @@ function createKanbanStore() {
                 ...(board.maintainers || []).map(maintainer => ['p', maintainer])
             ];
 
-            await newBoardEvent.publishReplaceable();
+            await ndkInstance.publishEvent(newBoardEvent, true);
 
             // Update local store
             update(state => ({
@@ -1169,7 +1170,7 @@ function createKanbanStore() {
                 // Add a tags
                 ['a', targetBoardATag]
             ];
-            await newCardEvent.publish();            
+            await ndkInstance.publishEvent(newCardEvent);            
 
             // After successful tracking
             donationStore.showDonationRequest();

@@ -1,6 +1,7 @@
 import NDK, { 
     NDKPrivateKeySigner, 
     NDKNip07Signer, 
+    NDKNip46Signer,
     NDKUser,
     NDKZapper,
     type NDKSigner,
@@ -17,7 +18,7 @@ import { type Card } from '../stores/kanban';
 import { NDKNWCWallet, NDKWebLNWallet, update} from '@nostr-dev-kit/ndk-wallet';
 
 
-export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'readonly';
+export type LoginMethod = 'nsec' | 'npub' | 'nip07' | 'bunker' | 'readonly';
 
 interface NDKState {
     user: NDKUser | null;
@@ -34,6 +35,7 @@ interface StoredLoginData {
     loginMethod: LoginMethod;
     nsec?: string;
     npub?: string;
+    bunkerUri?: string;
 }
 
 interface StoredWalletData {    
@@ -48,6 +50,9 @@ const DEFAULT_RELAYS = [
     'wss://nos.lol',
     'wss://relay.primal.net'
 ];
+
+// Store that indicates whether a bunker publish is in progress
+export const bunkerPublishing: Writable<boolean> = writable(false);
 
 class NDKInstance {
     private static instance?: NDKInstance;
@@ -80,6 +85,26 @@ class NDKInstance {
         NDKInstance.instance = undefined;
     }
 
+    public async publishEvent(event: NDKEvent, publishReplaceable?: boolean): Promise<void> {
+        // if bunker login, set bunkerPublishing to true
+        const currentState = this.getCurrentState();
+        if (currentState.loginMethod === 'bunker') {
+            bunkerPublishing.set(true);
+        }
+
+        try{
+            if(publishReplaceable) {
+               await event.publishReplaceable();
+            } else {
+                await event.publish();
+            }
+        } finally {
+            if (currentState.loginMethod === 'bunker') {
+                bunkerPublishing.set(false);
+            }
+        }
+    }
+
     private async tryAutoLogin() {
         const storedData = this.getStoredLoginData();
         if (!storedData) return;
@@ -103,6 +128,11 @@ class NDKInstance {
                     break;
                 case 'nip07':
                     await this.loginWithNip07();
+                    break;
+                case 'bunker':
+                    if (storedData.bunkerUri) {
+                        await this.loginWithBunker(storedData.bunkerUri, storedData.nsec);
+                    }
                     break;
                 case 'readonly':
                     await this.loginReadOnly();
@@ -405,6 +435,58 @@ class NDKInstance {
         }
     }
 
+    async loginWithBunker(bunkerUri: string, bunkerNsec?: string): Promise<void> {
+        try {
+            console.log("Logging in with bunker:// URI");
+            this.state.update(state => ({
+                ...state,
+                isLoggingInNow: true
+            }));
+            this._ndk = new NDK({
+                explicitRelayUrls: DEFAULT_RELAYS
+            });
+            const signer = new NDKNip46Signer(this._ndk, bunkerUri, bunkerNsec);
+            this._ndk.signer = signer;
+            await signer.blockUntilReady();  
+            console.log("Bunker signer is ready");          
+            await this._ndk.connect();
+
+            const nsec = signer.localSigner.nsec;
+
+            this.getStoredZapWalletData();
+            
+            this.user = await signer.user();
+            console.log("Bunker user npub: "+ this.user.npub);
+            const user = this.user;
+            await user.fetchProfile();
+            this.state.set({
+                user,
+                loginMethod: 'bunker',
+                isReady: true,
+                isLoggingInNow: false,                
+                zapMethod: this.zapMethod,
+                nwcString: this.nwcString,
+                zappingNow: false,
+                manualZapInvoicesPending: []
+            });
+
+            // Store login data
+            this.storeLoginData({
+                loginMethod: 'bunker',
+                bunkerUri: bunkerUri,
+                nsec,
+                npub: user.npub
+            });
+        } catch (error) {
+            console.error('Failed to connect via bunker://', error);
+            this.state.update(state => ({
+                ...state,
+                isLoggingInNow: false,
+                }));
+            throw new Error('Failed to connect via bunker: ' + error );
+        }
+    }
+
     async loginReadOnly(): Promise<void> {
         try {
             const signer = NDKPrivateKeySigner.generate();
@@ -477,7 +559,7 @@ class NDKInstance {
         return currentState.loginMethod === 'nsec' || currentState.loginMethod === 'nip07';
     }
 
-    private getCurrentState(): NDKState {
+    public getCurrentState(): NDKState {
         let currentState: NDKState = {
             user: null,
             loginMethod: null,
