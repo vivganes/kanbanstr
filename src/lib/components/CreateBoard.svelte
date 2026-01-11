@@ -51,12 +51,6 @@
         [newColumns[index], newColumns[newIndex]] = [newColumns[newIndex], newColumns[index]];
         columns = newColumns.map((col, i) => ({ ...col, order: i }));
     }
-
-    function updateColumnName(index: number, newName: string) {
-        columns = columns.map((col, i) => 
-            i === index ? { ...col, name: newName } : col
-        );
-    }
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -96,7 +90,6 @@
                                 class="column-name-input"
                                 type="text"
                                 bind:value={column.name}
-                                on:input={(e) => updateColumnName(i, e.currentTarget.value)}
                                 placeholder="Column name"
                             />
                             <div class="column-actions">
