@@ -42,6 +42,15 @@
         // Update order after removal
         columns = columns.map((col, i) => ({ ...col, order: i }));
     }
+
+    function moveColumn(index: number, direction: 'up' | 'down') {
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= columns.length) return;
+
+        const newColumns = [...columns];
+        [newColumns[index], newColumns[newIndex]] = [newColumns[newIndex], newColumns[index]];
+        columns = newColumns.map((col, i) => ({ ...col, order: i }));
+    }
 </script>
 
 <div class="modal-backdrop" on:click={onClose}>
@@ -77,16 +86,42 @@
                 <div class="columns-list">
                     {#each columns as column, i (column.id)}
                         <div class="column-item">
-                            <span>{column.name}</span>
-                            {#if columns.length > 1}
+                            <input
+                                class="column-name-input"
+                                type="text"
+                                bind:value={column.name}
+                                placeholder="Column name"
+                            />
+                            <div class="column-actions">
                                 <button
                                     type="button"
-                                    class="remove-btn"
-                                    on:click={() => removeColumn(i)}
+                                    class="move-btn"
+                                    disabled={i === 0}
+                                    on:click={() => moveColumn(i, 'up')}
+                                    title="Move up"
                                 >
-                                    &times;
+                                    ↑
                                 </button>
-                            {/if}
+                                <button
+                                    type="button"
+                                    class="move-btn"
+                                    disabled={i === columns.length - 1}
+                                    on:click={() => moveColumn(i, 'down')}
+                                    title="Move down"
+                                >
+                                    ↓
+                                </button>
+                                {#if columns.length > 1}
+                                    <button
+                                        type="button"
+                                        class="remove-btn"
+                                        on:click={() => removeColumn(i)}
+                                        title="Remove column"
+                                    >
+                                        &times;
+                                    </button>
+                                {/if}
+                            </div>
                         </div>
                     {/each}
                 </div>
@@ -192,6 +227,46 @@
         background: #f5f5f5;
         border-radius: 4px;
         margin-bottom: 0.5rem;
+        gap: 0.5rem;
+    }
+
+    .column-name-input {
+        flex: 1;
+        margin-bottom: 0;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .column-name-input:focus {
+        outline: none;
+        border-color: #0052cc;
+        box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.1);
+    }
+
+    .column-actions {
+        display: flex;
+        gap: 0.25rem;
+        align-items: center;
+    }
+
+    .move-btn {
+        background: none;
+        border: none;
+        padding: 0.2rem 0.4rem;
+        cursor: pointer;
+        font-size: 1.2rem;
+        color: #42526e;
+        border-radius: 4px;
+    }
+
+    .move-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .move-btn:not(:disabled):hover {
+        background: #ebecf0;
     }
 
     .remove-btn {
@@ -199,7 +274,13 @@
         border: none;
         color: #ff4444;
         cursor: pointer;
-        padding: 0 0.5rem;
+        padding: 0.2rem 0.4rem;
+        font-size: 1.2rem;
+        border-radius: 4px;
+    }
+
+    .remove-btn:hover {
+        background: #ffe0e0;
     }
 
     .add-column {
