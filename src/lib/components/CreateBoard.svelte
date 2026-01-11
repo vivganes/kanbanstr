@@ -238,6 +238,12 @@
         border-radius: 4px;
     }
 
+    .column-name-input:focus {
+        outline: none;
+        border-color: #0052cc;
+        box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.1);
+    }
+
     .column-actions {
         display: flex;
         gap: 0.25rem;
@@ -260,7 +266,7 @@
     }
 
     .move-btn:not(:disabled):hover {
-        background: #e0e0e0;
+        background: #ebecf0;
     }
 
     .remove-btn {
