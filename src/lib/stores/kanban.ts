@@ -1387,7 +1387,7 @@ export function createKanbanStore() {
                 pubkey: event.pubkey,
                 content: event.content,
                 created_at: event.created_at!,
-                parentId: isReply ? (eTag ? eTag[1] : null) : null,
+                parentId: isReply ? eTag![1] : null,
                 parentType: isReply ? 'reply' : 'card',
             });
         }

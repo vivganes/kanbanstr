@@ -7,6 +7,7 @@
     import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
+    import { formatDateTime } from '../utils/date';
     import type { KanbanBoard } from '../stores/kanban';
     import { toastStore } from '../stores/toast';
     import Link from '@tiptap/extension-link'
@@ -480,10 +481,6 @@
         }
     }
 
-    function formatCommentDate(timestamp: number): string {
-        return new Date(timestamp * 1000).toLocaleString();
-    }
-
 
 </script>
 
@@ -791,7 +788,7 @@
                     <div class="comment">
                         <div class="comment-header">
                             <span class="comment-author">{comment.pubkey.slice(0, 8)}…</span>
-                            <span class="comment-time">{formatCommentDate(comment.created_at)}</span>
+                            <span class="comment-time">{formatDateTime(comment.created_at)}</span>
                         </div>
                         <div class="comment-body">{comment.content}</div>
                         {#if currentUser && !readOnly}
@@ -801,7 +798,7 @@
                             <div class="comment comment-reply">
                                 <div class="comment-header">
                                     <span class="comment-author">{reply.pubkey.slice(0, 8)}…</span>
-                                    <span class="comment-time">{formatCommentDate(reply.created_at)}</span>
+                                    <span class="comment-time">{formatDateTime(reply.created_at)}</span>
                                 </div>
                                 <div class="comment-body">{reply.content}</div>
                             </div>
