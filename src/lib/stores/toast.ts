@@ -6,7 +6,7 @@ export interface Toast {
     type: 'success' | 'error';
 }
 
-function createToastStore() {
+export function createToastStore(autoRemoveDelayMs = 3000) {
     const { subscribe, update } = writable<Toast[]>([]);
 
     function addToast(message: string, type: 'success' | 'error' = 'success') {
@@ -15,7 +15,7 @@ function createToastStore() {
 
         setTimeout(() => {
             removeToast(id);
-        }, 3000);
+        }, autoRemoveDelayMs);
     }
 
     function removeToast(id: string) {
