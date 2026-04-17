@@ -232,3 +232,182 @@ describe('createKanbanStore – ndkInstance.publishEvent seam', () => {
         expect(mockPublishEvent).toHaveBeenCalledOnce();
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('createKanbanStore – loadCommentsForCard', () => {
+    it('returns an empty array when no comment events exist', async () => {
+        const { store, mockNdk } = makeStore();
+        (mockNdk.fetchEvents as ReturnType<typeof vi.fn>).mockResolvedValueOnce(new Set());
+
+        const comments = await store.loadCommentsForCard('pubkey1', 'card-dtag-1');
+
+        expect(comments).toEqual([]);
+    });
+
+    it('maps a top-level comment event to a CardComment with parentId null', async () => {
+        const { store, mockNdk } = makeStore();
+
+        const fakeCommentEvent = {
+            id: 'comment-event-id-1',
+            pubkey: 'author-pubkey-1',
+            content: 'Hello world',
+            created_at: 1700000000,
+            tags: [
+                ['a', '30302:pubkey1:card-dtag-1'],
+                ['e', 'card-event-id-1', 'card'],
+            ],
+        };
+        (mockNdk.fetchEvents as ReturnType<typeof vi.fn>).mockResolvedValueOnce(new Set([fakeCommentEvent]));
+
+        const comments = await store.loadCommentsForCard('pubkey1', 'card-dtag-1');
+
+        expect(comments).toHaveLength(1);
+        expect(comments[0].id).toBe('comment-event-id-1');
+        expect(comments[0].pubkey).toBe('author-pubkey-1');
+        expect(comments[0].content).toBe('Hello world');
+        expect(comments[0].created_at).toBe(1700000000);
+        expect(comments[0].parentId).toBeNull();
+        expect(comments[0].parentType).toBe('card');
+    });
+
+    it('maps a reply event to a CardComment with parentId set', async () => {
+        const { store, mockNdk } = makeStore();
+
+        const fakeReplyEvent = {
+            id: 'reply-event-id-1',
+            pubkey: 'author-pubkey-2',
+            content: 'This is a reply',
+            created_at: 1700000100,
+            tags: [
+                ['a', '30302:pubkey1:card-dtag-1'],
+                ['e', 'comment-event-id-1', 'reply'],
+            ],
+        };
+        (mockNdk.fetchEvents as ReturnType<typeof vi.fn>).mockResolvedValueOnce(new Set([fakeReplyEvent]));
+
+        const comments = await store.loadCommentsForCard('pubkey1', 'card-dtag-1');
+
+        expect(comments).toHaveLength(1);
+        expect(comments[0].parentId).toBe('comment-event-id-1');
+        expect(comments[0].parentType).toBe('reply');
+    });
+
+    it('sorts comments by created_at ascending', async () => {
+        const { store, mockNdk } = makeStore();
+
+        const event1 = {
+            id: 'evt-1', pubkey: 'p1', content: 'first', created_at: 1700000200,
+            tags: [['a', '30302:pubkey1:card-dtag-1'], ['e', 'card-id', 'card']],
+        };
+        const event2 = {
+            id: 'evt-2', pubkey: 'p2', content: 'second', created_at: 1700000100,
+            tags: [['a', '30302:pubkey1:card-dtag-1'], ['e', 'card-id', 'card']],
+        };
+        (mockNdk.fetchEvents as ReturnType<typeof vi.fn>).mockResolvedValueOnce(new Set([event1, event2]));
+
+        const comments = await store.loadCommentsForCard('pubkey1', 'card-dtag-1');
+
+        expect(comments[0].id).toBe('evt-2');
+        expect(comments[1].id).toBe('evt-1');
+    });
+
+    it('fetches with the correct #a filter', async () => {
+        const { store, mockNdk } = makeStore();
+        (mockNdk.fetchEvents as ReturnType<typeof vi.fn>).mockResolvedValueOnce(new Set());
+
+        await store.loadCommentsForCard('boardpubkey', 'my-card-dtag');
+
+        const callArg = (mockNdk.fetchEvents as ReturnType<typeof vi.fn>).mock.calls[0][0];
+        expect(callArg.kinds).toContain(30303);
+        expect(callArg['#a']).toContain('30302:boardpubkey:my-card-dtag');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('createKanbanStore – publishComment', () => {
+    beforeEach(() => {
+        mockPublishEvent.mockClear();
+    });
+
+    it('calls publishEvent once for a top-level comment', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id', 'Nice card!');
+
+        expect(mockPublishEvent).toHaveBeenCalledOnce();
+    });
+
+    it('publishes an event with kind 30303', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id', 'A comment');
+
+        const publishedEvent = mockPublishEvent.mock.calls[0][0];
+        expect(publishedEvent.kind).toBe(30303);
+    });
+
+    it('sets correct content on the published event', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id', 'My comment text');
+
+        const publishedEvent = mockPublishEvent.mock.calls[0][0];
+        expect(publishedEvent.content).toBe('My comment text');
+    });
+
+    it('includes the a tag referencing the card for a top-level comment', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id', 'Hello');
+
+        const publishedEvent = mockPublishEvent.mock.calls[0][0];
+        const aTag = publishedEvent.tags.find((t: string[]) => t[0] === 'a');
+        expect(aTag).toBeDefined();
+        expect(aTag[1]).toBe('30302:boardpubkey:card-dtag');
+    });
+
+    it('includes e tag with "card" marker for a top-level comment', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id-123', 'Top level');
+
+        const publishedEvent = mockPublishEvent.mock.calls[0][0];
+        const eTag = publishedEvent.tags.find((t: string[]) => t[0] === 'e');
+        expect(eTag).toBeDefined();
+        expect(eTag[1]).toBe('card-event-id-123');
+        expect(eTag[2]).toBe('card');
+    });
+
+    it('includes e tag with "reply" marker when parentCommentEventId is provided', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id', 'A reply', 'parent-comment-id');
+
+        const publishedEvent = mockPublishEvent.mock.calls[0][0];
+        const eTag = publishedEvent.tags.find((t: string[]) => t[0] === 'e');
+        expect(eTag).toBeDefined();
+        expect(eTag[1]).toBe('parent-comment-id');
+        expect(eTag[2]).toBe('reply');
+    });
+
+    it('includes p tag for mentioned author when parentCommentAuthorPubkey is provided', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id', 'Reply', 'parent-id', 'author-pubkey');
+
+        const publishedEvent = mockPublishEvent.mock.calls[0][0];
+        const pTag = publishedEvent.tags.find((t: string[]) => t[0] === 'p');
+        expect(pTag).toBeDefined();
+        expect(pTag[1]).toBe('author-pubkey');
+    });
+
+    it('does NOT include p tag when no parentCommentAuthorPubkey given', async () => {
+        const { store } = makeStore();
+
+        await store.publishComment('boardpubkey', 'card-dtag', 'card-event-id', 'Top level comment');
+
+        const publishedEvent = mockPublishEvent.mock.calls[0][0];
+        const pTag = publishedEvent.tags.find((t: string[]) => t[0] === 'p');
+        expect(pTag).toBeUndefined();
+    });
+});
