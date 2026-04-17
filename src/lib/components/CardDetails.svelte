@@ -10,6 +10,7 @@
     import type { KanbanBoard } from '../stores/kanban';
     import { toastStore } from '../stores/toast';
     import Link from '@tiptap/extension-link'
+    import CardComments from './CardComments.svelte';
 
     export let card: Card;
     export let boardPubkey: string;
@@ -718,6 +719,8 @@
                 {/if}
             </div>
             {/if}
+
+            <CardComments {card} {boardPubkey} {readOnly} />
         </div>
 
         <div class="section">
