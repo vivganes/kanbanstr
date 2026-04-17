@@ -80,7 +80,7 @@ interface KanbanState {
     error: string | null;
 }
 
-function createKanbanStore() {
+export function createKanbanStore() {
     const { subscribe, set, update } = writable<KanbanState>({
         boards: [],
         myBoards: [],
