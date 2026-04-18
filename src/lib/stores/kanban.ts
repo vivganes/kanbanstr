@@ -70,6 +70,15 @@ interface LinkType{
     backwardLabel: string;
 }
 
+export interface CardComment {
+    id: string;
+    pubkey: string;
+    content: string;
+    created_at: number;
+    parentId: string | null;
+    parentType: 'card' | 'reply';
+}
+
 interface KanbanState {
     boards: KanbanBoard[];
     myBoards: KanbanBoard[];
@@ -80,7 +89,7 @@ interface KanbanState {
     error: string | null;
 }
 
-function createKanbanStore() {
+export function createKanbanStore() {
     const { subscribe, set, update } = writable<KanbanState>({
         boards: [],
         myBoards: [],
@@ -1362,6 +1371,54 @@ function createKanbanStore() {
         });
     }
 
+    async function loadCommentsForCard(boardPubkey: string, cardDTag: string): Promise<CardComment[]> {
+        const filter: NDKFilter = {
+            kinds: [30303 as NDKKind],
+            '#a': [`30302:${boardPubkey}:${cardDTag}`],
+        };
+        const events = await ndk.fetchEvents(filter);
+        const comments: CardComment[] = [];
+        for (const event of events) {
+            const eTag = event.tags.find(t => t[0] === 'e');
+            const marker = eTag ? eTag[2] : undefined;
+            const isReply = marker === 'reply';
+            comments.push({
+                id: event.id,
+                pubkey: event.pubkey,
+                content: event.content,
+                created_at: event.created_at!,
+                parentId: isReply ? eTag![1] : null,
+                parentType: isReply ? 'reply' : 'card',
+            });
+        }
+        return comments.sort((a, b) => a.created_at - b.created_at);
+    }
+
+    async function publishComment(
+        boardPubkey: string,
+        cardDTag: string,
+        cardEventId: string,
+        content: string,
+        parentCommentEventId?: string,
+        parentCommentAuthorPubkey?: string,
+    ): Promise<void> {
+        const event = new NDKEvent(ndk);
+        event.kind = 30303 as NDKKind;
+        event.content = content;
+        event.tags = [
+            ['a', `30302:${boardPubkey}:${cardDTag}`],
+        ];
+        if (parentCommentEventId) {
+            event.tags.push(['e', parentCommentEventId, 'reply']);
+            if (parentCommentAuthorPubkey) {
+                event.tags.push(['p', parentCommentAuthorPubkey]);
+            }
+        } else {
+            event.tags.push(['e', cardEventId, 'card']);
+        }
+        await ndkInstance.publishEvent(event);
+    }
+
     return {
         subscribe,
         init,
@@ -1387,7 +1444,9 @@ function createKanbanStore() {
         updateStateWithDeletedOutgoingLinkFromACard,
         updateCardsAfterColumnRename,
         toggleCardBinned,
-        toggleShowBinnedCards
+        toggleShowBinnedCards,
+        loadCommentsForCard,
+        publishComment,
     };
 }
 

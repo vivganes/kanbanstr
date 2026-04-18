@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { Card, CardLink } from '../stores/kanban';
+    import type { Card, CardLink, CardComment } from '../stores/kanban';
     import { kanbanStore } from '../stores/kanban';
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
@@ -7,6 +7,7 @@
     import { onMount, onDestroy, getContext } from 'svelte';
     import { ndkInstance } from '../ndk';
     import { getUserDisplayName, getUserDisplayNameByNip05, resolveIdentifier } from '../utils/user';
+    import { formatDateTime } from '../utils/date';
     import type { KanbanBoard } from '../stores/kanban';
     import { toastStore } from '../stores/toast';
     import Link from '@tiptap/extension-link'
@@ -57,6 +58,13 @@
     let loadingPossibleAssignees = false;
     let errorLoadingPossibleAssignees: string | null = null;
 
+    // Comments state
+    let comments: CardComment[] = [];
+    let loadingComments = false;
+    let newCommentText = '';
+    let replyingToId: string | null = null;
+    let replyText = '';
+
 
 
     onMount(async () => {
@@ -86,6 +94,7 @@
         });
         
         fillLinksForCard();
+        loadComments();
         const unsubscribeNdk = ndkInstance.store.subscribe(state => {
             currentUser = state.user;
             loginMethod = state.loginMethod;
@@ -422,6 +431,56 @@
         }
     }
 
+    $: topLevelComments = comments.filter(c => c.parentType === 'card');
+
+    function getReplies(parentId: string): CardComment[] {
+        return comments.filter(c => c.parentId === parentId);
+    }
+
+    function startReply(comment: CardComment) {
+        replyingToId = comment.id;
+        replyText = '';
+    }
+
+    function cancelReply() {
+        replyingToId = null;
+        replyText = '';
+    }
+
+    async function loadComments() {
+        loadingComments = true;
+        try {
+            comments = await kanbanStore.loadCommentsForCard(boardPubkey, card.dTag);
+        } catch (e) {
+            console.error('Failed to load comments:', e);
+        } finally {
+            loadingComments = false;
+        }
+    }
+
+    async function handlePostComment() {
+        if (!newCommentText.trim()) return;
+        try {
+            await kanbanStore.publishComment(boardPubkey, card.dTag, card.id, newCommentText.trim());
+            newCommentText = '';
+            await loadComments();
+        } catch (e) {
+            console.error('Failed to post comment:', e);
+        }
+    }
+
+    async function handlePostReply(parentComment: CardComment) {
+        if (!replyText.trim()) return;
+        try {
+            await kanbanStore.publishComment(boardPubkey, card.dTag, card.id, replyText.trim(), parentComment.id, parentComment.pubkey);
+            replyText = '';
+            replyingToId = null;
+            await loadComments();
+        } catch (e) {
+            console.error('Failed to post reply:', e);
+        }
+    }
+
 
 </script>
 
@@ -717,6 +776,55 @@
                     </div>
                 {/if}
             </div>
+            {/if}
+        </div>
+
+        <div class="section">
+            <h3>Comments</h3>
+            {#if loadingComments}
+                <div>Loading comments...</div>
+            {:else}
+                {#each topLevelComments as comment}
+                    <div class="comment">
+                        <div class="comment-header">
+                            <span class="comment-author">{comment.pubkey.slice(0, 8)}…</span>
+                            <span class="comment-time">{formatDateTime(comment.created_at)}</span>
+                        </div>
+                        <div class="comment-body">{comment.content}</div>
+                        {#if currentUser && !readOnly}
+                            <button type="button" class="reply-btn" on:click={() => startReply(comment)}>Reply</button>
+                        {/if}
+                        {#each getReplies(comment.id) as reply}
+                            <div class="comment comment-reply">
+                                <div class="comment-header">
+                                    <span class="comment-author">{reply.pubkey.slice(0, 8)}…</span>
+                                    <span class="comment-time">{formatDateTime(reply.created_at)}</span>
+                                </div>
+                                <div class="comment-body">{reply.content}</div>
+                            </div>
+                        {/each}
+                        {#if replyingToId === comment.id}
+                            <div class="reply-form">
+                                <textarea bind:value={replyText} placeholder="Write a reply..."></textarea>
+                                <div class="reply-actions">
+                                    <button type="button" disabled={!replyText.trim()} on:click={() => handlePostReply(comment)}>Post Reply</button>
+                                    <button type="button" class="cancel" on:click={cancelReply}>Cancel</button>
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                {/each}
+                {#if topLevelComments.length === 0}
+                    <div class="no-comments">No comments yet.</div>
+                {/if}
+                {#if currentUser && !readOnly}
+                    <div class="add-comment">
+                        <textarea bind:value={newCommentText} placeholder="Add a comment..."></textarea>
+                        <button type="button" disabled={!newCommentText.trim()} on:click={handlePostComment}>
+                            Post Comment
+                        </button>
+                    </div>
+                {/if}
             {/if}
         </div>
 
@@ -1359,5 +1467,85 @@
         color: #666;
         font-style: italic;
         margin-top: -1rem;
+    }
+
+    .comment {
+        background: #f5f5f5;
+        border-radius: 4px;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .comment-reply {
+        margin-left: 1.5rem;
+        margin-top: 0.5rem;
+        background: #ececec;
+    }
+
+    .comment-header {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .comment-author {
+        font-weight: 500;
+        font-size: 0.85rem;
+    }
+
+    .comment-time {
+        font-size: 0.75rem;
+        color: #888;
+    }
+
+    .comment-body {
+        font-size: 0.95rem;
+        word-break: break-word;
+        margin-bottom: 0.5rem;
+    }
+
+    .reply-btn {
+        background: none;
+        border: 1px solid #ccc;
+        color: #555;
+        font-size: 0.8rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .reply-form {
+        margin-top: 0.5rem;
+    }
+
+    .reply-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.4rem;
+    }
+
+    .add-comment {
+        margin-top: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .add-comment textarea,
+    .reply-form textarea {
+        width: 100%;
+        min-height: 60px;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+
+    .no-comments {
+        color: #888;
+        font-style: italic;
+        font-size: 0.9rem;
     }
 </style> 
