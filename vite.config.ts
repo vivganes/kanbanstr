@@ -10,6 +10,9 @@ export default defineConfig({
 			}
 		: undefined,
 	test: {
-		environment: 'jsdom'
+		environment: 'jsdom',
+		coverage: {
+			enabled: true
+		}
 	}
 }); 
