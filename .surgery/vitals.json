@@ -3,20 +3,21 @@
   "repoRoot": "D:\\source-codes\\kanbanstr",
   "engine": "plugin",
   "startedAt": "2026-04-23T01:19:31.463Z",
-  "lastUpdated": "2026-04-23T04:16:04.547Z",
-  "currentPhase": "implement",
+  "lastUpdated": "2026-04-23T04:29:42.198Z",
+  "currentPhase": "refactor",
   "phaseStartedAt": {
     "plan": "2026-04-23T01:19:31.463Z",
     "map": "2026-04-23T02:52:12.057Z",
     "break": "2026-04-23T03:52:46.008Z",
-    "cover": "2026-04-23T04:06:45.810Z"
+    "cover": "2026-04-23T04:06:45.810Z",
+    "implement": "2026-04-23T04:19:16.515Z"
   },
   "phaseStatus": {
     "plan": "completed",
     "map": "completed",
     "break": "completed",
-    "cover": "awaiting-approval",
-    "implement": "pending",
+    "cover": "completed",
+    "implement": "awaiting-approval",
     "refactor": "pending",
     "finish": "pending"
   },
@@ -36,6 +37,11 @@
     "D:\\source-codes\\kanbanstr\\plan\\plan.md",
     "D:\\source-codes\\kanbanstr\\plan\\seams-and-dependencies.md",
     "D:\\source-codes\\kanbanstr\\src\\lib\\stores\\buildThread.test.ts",
-    "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CardDetails.pinning.test.ts"
+    "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CardDetails.pinning.test.ts",
+    "D:\\source-codes\\kanbanstr\\src\\lib\\stores\\comments.ts",
+    "D:\\source-codes\\kanbanstr\\src\\test\\comments.store.test.ts",
+    "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CardComments.svelte",
+    "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CommentThread.svelte",
+    "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CardDetails.svelte"
   ]
 }
