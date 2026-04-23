@@ -118,9 +118,7 @@
 </div>
 
 <style>
-    .comment-wrapper {
-        /* margin-left is set inline per depth level */
-    }
+    /* .comment-wrapper: margin-left is set inline per depth level */
 
     .comment-item {
         background: #f5f5f5;
@@ -226,9 +224,7 @@
         font-size: 0.8rem;
     }
 
-    .replies {
-        /* child nodes are indented via the inline style on .comment-wrapper */
-    }
+    /* .replies: child nodes are indented via the inline style on .comment-wrapper */
 
     @media (prefers-color-scheme: dark) {
         .comment-item {

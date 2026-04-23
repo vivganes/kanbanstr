@@ -1,6 +1,24 @@
 import { NDKEvent } from '@nostr-dev-kit/ndk';
 import { ndkInstance } from '../ndk';
 
+// ---------------------------------------------------------------------------
+// Nostr kind and tag constants for the comment protocol
+// ---------------------------------------------------------------------------
+
+/** Nostr event kind for threaded card comments */
+export const COMMENT_KIND = 30303;
+
+/** Nostr event kind for kanban cards (used in the `a` tag reference) */
+const CARD_KIND = 30302;
+
+/** Marker used in the `e` tag when a comment references its parent card */
+const E_TAG_MARKER_CARD = 'card';
+
+/** Marker used in the `e` tag when a comment is a reply to another comment */
+const E_TAG_MARKER_REPLY = 'reply';
+
+// ---------------------------------------------------------------------------
+
 export interface Comment {
     id: string;
     pubkey: string;
@@ -36,7 +54,7 @@ export function buildThread(comments: Comment[]): CommentNode[] {
 
     for (const comment of comments) {
         const node = nodeMap.get(comment.id)!;
-        if (comment.parentType === 'card') {
+        if (comment.parentType === E_TAG_MARKER_CARD) {
             roots.push(node);
         } else {
             // reply — find parent or fall back to root
@@ -76,13 +94,13 @@ function ndkEventToComment(event: NDKEvent): Comment | null {
             content: event.content ?? '',
             created_at: event.created_at ?? 0,
             parentId: null,
-            parentType: 'card',
+            parentType: E_TAG_MARKER_CARD,
         };
     }
 
-    const marker = eTag[2] as 'card' | 'reply' | undefined;
-    const parentType: 'card' | 'reply' = marker === 'reply' ? 'reply' : 'card';
-    const parentId: string | null = parentType === 'reply' ? (eTag[1] ?? null) : null;
+    const isReply = eTag[2] === E_TAG_MARKER_REPLY;
+    const parentType: 'card' | 'reply' = isReply ? E_TAG_MARKER_REPLY : E_TAG_MARKER_CARD;
+    const parentId: string | null = isReply ? (eTag[1] ?? null) : null;
 
     return {
         id: event.id ?? '',
@@ -109,8 +127,8 @@ export async function loadCommentsForCard(
     }
 
     const filter = {
-        kinds: [30303 as any],
-        '#a': [`30302:${boardPubkey}:${cardDTag}`],
+        kinds: [COMMENT_KIND as any],
+        '#a': [`${CARD_KIND}:${boardPubkey}:${cardDTag}`],
     };
 
     const events = await ndk.fetchEvents(filter);
@@ -142,16 +160,16 @@ export async function publishComment(
     const ndk = ndkInstance.ndk;
 
     const event = new NDKEvent(ndk ?? undefined);
-    event.kind = 30303;
+    event.kind = COMMENT_KIND;
     event.content = text;
     event.tags = [
-        ['a', `30302:${boardPubkey}:${cardDTag}`],
+        ['a', `${CARD_KIND}:${boardPubkey}:${cardDTag}`],
     ];
 
     if (parentCommentId) {
-        event.tags.push(['e', parentCommentId, 'reply']);
+        event.tags.push(['e', parentCommentId, E_TAG_MARKER_REPLY]);
     } else {
-        event.tags.push(['e', cardEventId, 'card']);
+        event.tags.push(['e', cardEventId, E_TAG_MARKER_CARD]);
     }
 
     await ndkInstance.publishEvent(event);
@@ -162,7 +180,7 @@ export async function publishComment(
         content: text,
         created_at: event.created_at ?? Math.floor(Date.now() / 1000),
         parentId: parentCommentId ?? null,
-        parentType: parentCommentId ? 'reply' : 'card',
+        parentType: parentCommentId ? E_TAG_MARKER_REPLY : E_TAG_MARKER_CARD,
     };
 
     return comment;

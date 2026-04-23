@@ -32,35 +32,51 @@
         }
     });
 
-    async function submitComment() {
-        if (!newCommentText.trim() || isSubmitting) return;
+    /**
+     * Wraps a publish action with the shared isSubmitting guard and error
+     * handling. The action receives the already-trimmed text and appends the
+     * returned Comment to the local list on success.
+     */
+    async function withSubmit(
+        text: string,
+        failureMessage: string,
+        action: (trimmed: string) => Promise<import('../stores/comments').Comment>
+    ): Promise<boolean> {
+        const trimmed = text.trim();
+        if (!trimmed || isSubmitting) return false;
         isSubmitting = true;
         error = null;
         try {
-            const comment = await publishComment(boardPubkey, card.dTag, card.id, newCommentText.trim());
+            const comment = await action(trimmed);
             comments = [...comments, comment];
-            newCommentText = '';
+            return true;
         } catch (e) {
-            error = e instanceof Error ? e.message : 'Failed to post comment';
+            error = e instanceof Error ? e.message : failureMessage;
+            return false;
         } finally {
             isSubmitting = false;
         }
     }
 
+    async function submitComment() {
+        const posted = await withSubmit(
+            newCommentText,
+            'Failed to post comment',
+            (trimmed) => publishComment(boardPubkey, card.dTag, card.id, trimmed)
+        );
+        if (posted) newCommentText = '';
+    }
+
     async function handleReply(e: CustomEvent<{ parentId: string; text: string }>) {
         const { parentId, text } = e.detail;
-        if (!text.trim() || isSubmitting) return;
-        isSubmitting = true;
-        error = null;
-        try {
-            const comment = await publishComment(boardPubkey, card.dTag, card.id, text.trim(), parentId);
-            comments = [...comments, comment];
+        const posted = await withSubmit(
+            text,
+            'Failed to post reply',
+            (trimmed) => publishComment(boardPubkey, card.dTag, card.id, trimmed, parentId)
+        );
+        if (posted) {
             replyText = '';
             replyingToId = null;
-        } catch (e) {
-            error = e instanceof Error ? e.message : 'Failed to post reply';
-        } finally {
-            isSubmitting = false;
         }
     }
 
