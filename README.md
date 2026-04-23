@@ -16,4 +16,5 @@ WIP Repo for Kanban board implementation over nostr.
     * Programmatic - Yet to do
 * Cards assigned to people using 'zap' tags - Done (This is for people to get paid when the card is zapped)
 * Zap cards - Yet to do
+* Threaded comments on cards (Nostr kind 30303) - Done
 

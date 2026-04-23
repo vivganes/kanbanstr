@@ -3,15 +3,16 @@
   "repoRoot": "D:\\source-codes\\kanbanstr",
   "engine": "plugin",
   "startedAt": "2026-04-23T01:19:31.463Z",
-  "lastUpdated": "2026-04-23T04:37:11.896Z",
-  "currentPhase": "finish",
+  "lastUpdated": "2026-04-23T04:42:13.138Z",
+  "currentPhase": null,
   "phaseStartedAt": {
     "plan": "2026-04-23T01:19:31.463Z",
     "map": "2026-04-23T02:52:12.057Z",
     "break": "2026-04-23T03:52:46.008Z",
     "cover": "2026-04-23T04:06:45.810Z",
     "implement": "2026-04-23T04:19:16.515Z",
-    "refactor": "2026-04-23T04:32:40.162Z"
+    "refactor": "2026-04-23T04:32:40.162Z",
+    "finish": "2026-04-23T04:39:24.878Z"
   },
   "phaseStatus": {
     "plan": "completed",
@@ -19,8 +20,8 @@
     "break": "completed",
     "cover": "completed",
     "implement": "completed",
-    "refactor": "awaiting-approval",
-    "finish": "pending"
+    "refactor": "completed",
+    "finish": "awaiting-approval"
   },
   "tests": {
     "total": 0,
@@ -43,6 +44,9 @@
     "D:\\source-codes\\kanbanstr\\src\\test\\comments.store.test.ts",
     "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CardComments.svelte",
     "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CommentThread.svelte",
-    "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CardDetails.svelte"
+    "D:\\source-codes\\kanbanstr\\src\\lib\\components\\CardDetails.svelte",
+    "D:\\source-codes\\kanbanstr\\CHANGELOG.md",
+    "D:\\source-codes\\kanbanstr\\README.md",
+    "D:\\source-codes\\kanbanstr\\plan\\pr-description.md"
   ]
 }
