@@ -527,12 +527,19 @@ class NDKInstance {
             user: null,
             loginMethod: null,
             isReady: false,
-            isLoggingInNow: true,
+            isLoggingInNow: false,
             nwcString: null,
             zapMethod: undefined,
             zappingNow: false,
             manualZapInvoicesPending: []
         });
+        
+        // Clear stored login data BEFORE destroying the singleton
+        // to prevent any reactive code from triggering auto-login
+        // with still-present credentials
+        await this.clearStoredLoginData();
+        await this.clearStoredZapWalletData();
+        
         if(this.walletNdk){
             this.walletNdk = null;
         }
@@ -541,17 +548,9 @@ class NDKInstance {
         }
         this.user = null;
         NDKInstance.resetNdkInstance();
-        
-        
-        // Clear stored login data
-        await this.clearStoredLoginData();
-        await this.clearStoredZapWalletData();
 
-        
         console.log("Logged out");
         location.reload();
-
-        
     }
 
     canWrite(): boolean {

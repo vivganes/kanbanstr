@@ -96,9 +96,9 @@
     });
 
 
-    function handleLogout() {
-        kanbanStore.clearStore();
-        ndkInstance.logout();
+    async function handleLogout() {
+        await kanbanStore.clearStore();
+        await ndkInstance.logout();
     }
 
     function handleBoardClick(pubkey: string, boardId: string) {
