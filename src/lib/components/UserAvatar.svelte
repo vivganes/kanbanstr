@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { ndkInstance } from '../ndk';
     import { getUserWithProfileFromPubKey } from '../utils/user';
     import type { NDKUser } from '@nostr-dev-kit/ndk';
 
@@ -12,6 +13,13 @@
 
     onMount(async () => {
         try {
+            // If this avatar is for the current logged-in user, reuse the
+            // profile that was already fetched during login — no relay call needed.
+            const currentUser = ndkInstance.getCurrentState().user;
+            if (currentUser?.pubkey === pubkey && currentUser?.profile?.image) {
+                user = currentUser;
+                return;
+            }
             user = await getUserWithProfileFromPubKey(pubkey);
         } catch (e) {
             error = true;
@@ -21,14 +29,6 @@
 
     $: displayName = user?.profile?.name || 'Anonymous';
     $: avatarUrl = user?.profile?.image || `https://robohash.org/${pubkey}`;
-    $: {        
-        Promise.resolve(getUserWithProfileFromPubKey(pubkey)).then((u) => {
-                user = u;
-            }).catch((e) => {
-                error = true;
-                console.error('Failed to load user:', e);
-            });        
-    }
 </script>
 
 <div 

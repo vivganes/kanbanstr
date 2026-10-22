@@ -10,6 +10,7 @@
     let errorMessage: string | null = null;
     let zapMethod: 'webln' | 'nwc' | undefined = undefined;
     let isWebLnAvailable = false;
+    let settingsAvatarUrl: string | undefined = undefined;
 
     function handleBack() {
         push('/');
@@ -29,6 +30,8 @@
             unsubscribe();
         };
     });
+
+    $: settingsAvatarUrl = currentUser?.profile?.image || `https://robohash.org/${currentUser?.pubkey || 'unknown'}`;
 
     async function handleNWCSubmit() {
         try {
@@ -65,13 +68,12 @@
     <div class="section">
         <h2>Profile Information</h2>
         <div class="profile-info">
-            {#if currentUser?.profile?.image}
-                <img 
-                    src={currentUser.profile.image} 
-                    alt="Profile" 
-                    class="profile-image"
-                />
-            {/if}
+            <img 
+                src={settingsAvatarUrl}
+                alt="Profile" 
+                class="profile-image"
+                on:error={() => settingsAvatarUrl = `https://robohash.org/${currentUser?.pubkey || 'unknown'}`}
+            />
             <div class="profile-details">
                 <div class="field">
                     <label>Display Name</label>
